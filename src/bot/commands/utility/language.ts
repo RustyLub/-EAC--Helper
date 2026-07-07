@@ -16,6 +16,11 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (interaction.channel && 'name' in interaction.channel && interaction.channel.name !== 'management-bot') {
+    await interaction.reply({ content: 'Все настройки бота выполняются только в канале `management-bot`. / All bot settings are performed only in the `management-bot` channel.', ephemeral: true });
+    return;
+  }
+
   const newLang = interaction.options.getString('lang') as 'ru' | 'en';
   
   try {

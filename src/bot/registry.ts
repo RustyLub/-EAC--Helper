@@ -7,6 +7,7 @@ import * as newsCommand from './commands/news/news';
 import * as rankCommand from './commands/economy/rank';
 import * as leaderboardCommand from './commands/economy/leaderboard';
 import * as languageCommand from './commands/utility/language';
+import * as helpCommand from './commands/utility/help';
 
 export const commands = [
   banCommand,
@@ -17,7 +18,8 @@ export const commands = [
   newsCommand,
   rankCommand,
   leaderboardCommand,
-  languageCommand
+  languageCommand,
+  helpCommand
 ];
 
 import * as readyEvent from './events/ready';
