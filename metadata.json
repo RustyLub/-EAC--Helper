@@ -1,0 +1,6 @@
+{
+  "name": "Discord Bot",
+  "description": "Moderation, news, and leveling Discord bot with Firebase storage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
