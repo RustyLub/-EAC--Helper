@@ -1,83 +1,82 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, StringSelectMenuInteraction, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { getGuildLanguage, translations } from '../../utils/lang';
 
 export const data = new SlashCommandBuilder()
   .setName('help')
   .setDescription('Shows the interactive help menu.');
 
-const categories = {
-  home: {
-    label: 'Home',
-    emoji: '🏠',
-    description: 'Return to the main help menu',
-    commands: []
-  },
-  moderation: {
-    label: 'Moderation',
-    emoji: '🛡️',
-    description: 'View moderation commands',
-    commands: [
-      { name: 'ban', desc: 'Ban a user from the server.' },
-      { name: 'kick', desc: 'Kick a user from the server.' },
-      { name: 'mute', desc: 'Mute a user (timeout).' },
-      { name: 'warn', desc: 'Warn a user.' },
-      { name: 'clear', desc: 'Clear messages in a channel.' }
-    ]
-  },
-  economy: {
-    label: 'Economy',
-    emoji: '💰',
-    description: 'View economy commands',
-    commands: [
-      { name: 'rank', desc: 'Check your or another user\'s level and XP.' },
-      { name: 'leaderboard', desc: 'Show the top users by XP.' }
-    ]
-  },
-  news: {
-    label: 'News',
-    emoji: '📰',
-    description: 'View news commands',
-    commands: [
-      { name: 'news', desc: 'Publish a news announcement.' }
-    ]
-  },
-  utility: {
-    label: 'Utility',
-    emoji: '⚙️',
-    description: 'View utility commands',
-    commands: [
-      { name: 'language', desc: 'Set the server language (ru/en).' },
-      { name: 'help', desc: 'Shows the interactive help menu.' }
-    ]
-  }
-};
+function getCategories(lang: 'ru' | 'en') {
+  const t = translations[lang];
+  return {
+    home: {
+      label: t.helpHomeLabel,
+      emoji: '🏠',
+      description: t.helpHomeDesc,
+      commands: []
+    },
+    moderation: {
+      label: t.helpModerationLabel,
+      emoji: '🛡️',
+      description: t.helpModerationDesc,
+      commands: [
+        { name: 'ban', desc: lang === 'ru' ? 'Забанить пользователя.' : 'Ban a user from the server.' },
+        { name: 'kick', desc: lang === 'ru' ? 'Кикнуть пользователя.' : 'Kick a user from the server.' },
+        { name: 'mute', desc: lang === 'ru' ? 'Выдать тайм-аут.' : 'Mute a user (timeout).' },
+        { name: 'warn', desc: lang === 'ru' ? 'Выдать предупреждение.' : 'Warn a user.' },
+        { name: 'clear', desc: lang === 'ru' ? 'Очистить сообщения.' : 'Clear messages in a channel.' }
+      ]
+    },
+    economy: {
+      label: t.helpEconomyLabel,
+      emoji: '💰',
+      description: t.helpEconomyDesc,
+      commands: [
+        { name: 'rank', desc: lang === 'ru' ? 'Проверить уровень и опыт.' : 'Check your or another user\'s level and XP.' },
+        { name: 'leaderboard', desc: lang === 'ru' ? 'Показать топ пользователей.' : 'Show the top users by XP.' }
+      ]
+    },
+    news: {
+      label: t.helpNewsLabel,
+      emoji: '📰',
+      description: t.helpNewsDesc,
+      commands: [
+        { name: 'news', desc: lang === 'ru' ? 'Опубликовать новость.' : 'Publish a news announcement.' }
+      ]
+    },
+    utility: {
+      label: t.helpUtilityLabel,
+      emoji: '⚙️',
+      description: t.helpUtilityDesc,
+      commands: [
+        { name: 'language', desc: lang === 'ru' ? 'Установить язык сервера (ru/en).' : 'Set the server language (ru/en).' },
+        { name: 'help', desc: lang === 'ru' ? 'Показать интерактивное меню помощи.' : 'Shows the interactive help menu.' }
+      ]
+    }
+  };
+}
 
-function generateMainEmbed(client: any) {
+function generateMainEmbed(client: any, lang: 'ru' | 'en') {
+  const t = translations[lang];
   const botName = client?.user?.username || "Bot";
   const avatarUrl = client?.user?.displayAvatarURL?.({ size: 1024 });
 
   const embed = new EmbedBuilder()
     .setColor('#5865F2')
-    .setTitle(`📖 ${botName} Help`)
-    .setDescription('Set up your server, pick what to enable, then browse commands below.')
+    .setTitle(t.helpMainTitle(botName))
+    .setDescription(t.helpMainDesc)
     .addFields(
       {
-        name: '🚀 Getting Started',
-        value: [
-          '**1. Setup Language** — Run `/language` to configure your server language.',
-          '**2. Browse commands** — Use the menu below to view categories and commands.'
-        ].join('\n'),
+        name: t.helpGettingStarted,
+        value: t.helpGettingStartedValue,
         inline: false,
       },
       {
-        name: 'ℹ️ How It Works',
-        value: [
-          '• Commands are categorized for easy navigation.',
-          '• Settings are saved per server.',
-        ].join('\n'),
+        name: t.helpHowItWorks,
+        value: t.helpHowItWorksValue,
         inline: false,
       }
     )
-    .setFooter({ text: `Made with ❤️` })
+    .setFooter({ text: `${t.madeWithHeart} • ${new Date().toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US')}` })
     .setTimestamp();
   
   if (avatarUrl) {
@@ -87,7 +86,9 @@ function generateMainEmbed(client: any) {
   return embed;
 }
 
-function generateCategoryEmbed(categoryKey: string, appCommands: any) {
+function generateCategoryEmbed(categoryKey: string, appCommands: any, lang: 'ru' | 'en') {
+  const t = translations[lang];
+  const categories = getCategories(lang);
   const category = categories[categoryKey as keyof typeof categories];
   
   let commandsText = '';
@@ -102,20 +103,23 @@ function generateCategoryEmbed(categoryKey: string, appCommands: any) {
 
   return new EmbedBuilder()
     .setColor('#2b2d31')
-    .setTitle(`${category.emoji} ${category.label} Commands`)
-    .setDescription('Click any command mention below to use it:\n\n**Commands**\n' + commandsText)
-    .setFooter({ text: `Made with ❤️` })
+    .setTitle(t.helpCategoryTitle(category.emoji, category.label))
+    .setDescription(t.helpCategoryDesc + commandsText)
+    .setFooter({ text: `${t.madeWithHeart} • ${new Date().toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US')}` })
     .setTimestamp();
 }
 
-function generateComponents(selectedCategory: string) {
+function generateComponents(selectedCategory: string, lang: 'ru' | 'en') {
+  const t = translations[lang];
+  const categories = getCategories(lang);
+
   const bugReportButton = new ButtonBuilder()
     .setCustomId('help_bug_report')
-    .setLabel("Report Bug")
+    .setLabel(t.helpBugReport)
     .setStyle(ButtonStyle.Danger);
 
   const supportButton = new ButtonBuilder()
-    .setLabel("Support Server")
+    .setLabel(t.helpSupportServer)
     .setURL("https://discord.gg/discord")
     .setStyle(ButtonStyle.Link);
 
@@ -126,7 +130,7 @@ function generateComponents(selectedCategory: string) {
 
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId('help_category_select')
-    .setPlaceholder('Select a category to view commands...')
+    .setPlaceholder(t.helpSelectCategoryPlaceholder)
     .addOptions(
       Object.entries(categories).map(([key, cat]) => ({
         label: cat.label,
@@ -143,8 +147,9 @@ function generateComponents(selectedCategory: string) {
 }
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  const embed = generateMainEmbed(interaction.client);
-  const components = generateComponents('home');
+  const lang = await getGuildLanguage(interaction.guildId!);
+  const embed = generateMainEmbed(interaction.client, lang);
+  const components = generateComponents('home', lang);
 
   await interaction.reply({
     embeds: [embed],
@@ -153,20 +158,21 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 }
 
 export async function handleSelect(interaction: StringSelectMenuInteraction) {
+  const lang = await getGuildLanguage(interaction.guildId!);
   const selectedCategory = interaction.values[0];
   
   let embed;
   if (selectedCategory === 'home') {
-    embed = generateMainEmbed(interaction.client);
+    embed = generateMainEmbed(interaction.client, lang);
   } else {
     let appCommands = interaction.client.application?.commands.cache;
     if (!appCommands || appCommands.size === 0) {
       appCommands = await interaction.client.application?.commands.fetch();
     }
-    embed = generateCategoryEmbed(selectedCategory, appCommands);
+    embed = generateCategoryEmbed(selectedCategory, appCommands, lang);
   }
 
-  const components = generateComponents(selectedCategory);
+  const components = generateComponents(selectedCategory, lang);
 
   await interaction.update({
     embeds: [embed],

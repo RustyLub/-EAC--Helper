@@ -25,9 +25,13 @@ export const commands = [
 import * as readyEvent from './events/ready';
 import * as interactionCreateEvent from './events/interactionCreate';
 import * as messageCreateEvent from './events/messageCreate';
+import * as guildMemberAddEvent from './events/guildMemberAdd';
+import * as guildMemberRemoveEvent from './events/guildMemberRemove';
 
 export const events = [
   readyEvent,
   interactionCreateEvent,
-  messageCreateEvent
+  messageCreateEvent,
+  guildMemberAddEvent,
+  guildMemberRemoveEvent
 ];
