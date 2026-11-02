@@ -60,14 +60,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
   }
 
-  const prefix = type;
-  const update: Record<string, unknown> = {
-    [`${prefix}.enabled`]: enabled,
-    updatedAt: new Date().toISOString(),
-    updatedBy: interaction.user.id,
-  };
-  if (channel) update[`${prefix}.channelId`] = channel.id;
-  if (message !== undefined) update[`${prefix}.message`] = message;
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({ content: english ? 'Administrator permission is required.' : 'Требуются права администратора.', ephemeral: true });
+    return;
+  }
 
   try {
     await db.collection('guilds').doc(interaction.guildId).set({
