@@ -70,22 +70,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   if (message !== undefined) update[`${prefix}.message`] = message;
 
   try {
-    await db.collection('guilds').doc(interaction.guildId).update(update).catch(async error => {
-      // update() fails only when this server has no settings document yet.
-      if ((error as { code?: number }).code === 5) {
-        await db.collection('guilds').doc(interaction.guildId).set({
-          [type]: {
-            enabled,
-            ...(channel ? { channelId: channel.id } : {}),
-            ...(message !== undefined ? { message } : {}),
-          },
-          updatedAt: new Date().toISOString(),
-          updatedBy: interaction.user.id,
-        }, { merge: true });
-        return;
-      }
-      throw error;
-    });
+    await db.collection('guilds').doc(interaction.guildId).set({
+      [type]: {
+        enabled,
+        ...(channel ? { channelId: channel.id } : {}),
+        ...(message !== undefined ? { message } : {}),
+      },
+      updatedAt: new Date().toISOString(),
+      updatedBy: interaction.user.id,
+    }, { merge: true });
 
     await interaction.reply({
       content: english
