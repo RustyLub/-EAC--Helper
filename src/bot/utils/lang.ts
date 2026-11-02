@@ -4,7 +4,7 @@ export async function getGuildLanguage(guildId: string): Promise<'ru' | 'en'> {
   try {
     const doc = await db.collection('guilds').doc(guildId).get();
     if (doc.exists) {
-      return doc.data()?.language || 'ru';
+      return doc.data()?.language === 'en' ? 'en' : 'ru';
     }
   } catch (err) {
     console.error('Error fetching language:', err);
