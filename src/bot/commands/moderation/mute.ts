@@ -7,13 +7,13 @@ export const data = new SlashCommandBuilder()
   .addUserOption(option => 
     option.setName('target')
       .setDescription('The user to mute')
-      .setRequired(true)
-      .setMinValue(0)
-      .setMaxValue(40320))
+      .setRequired(true))
   .addIntegerOption(option => 
     option.setName('duration')
       .setDescription('Duration in minutes (0 to unmute)')
-      .setRequired(true))
+      .setRequired(true)
+      .setMinValue(0)
+      .setMaxValue(40320))
   .addStringOption(option => 
     option.setName('reason')
       .setDescription('Reason for the mute')
