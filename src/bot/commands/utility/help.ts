@@ -114,13 +114,13 @@ function generateComponents(selectedCategory: string, lang: 'ru' | 'en') {
   const categories = getCategories(lang);
 
   const bugReportButton = new ButtonBuilder()
-    .setCustomId('help_bug_report')
     .setLabel(t.helpBugReport)
-    .setStyle(ButtonStyle.Danger);
+    .setURL('https://github.com/RustyLub/-EAC--Helper/issues/new/choose')
+    .setStyle(ButtonStyle.Link);
 
   const supportButton = new ButtonBuilder()
     .setLabel(t.helpSupportServer)
-    .setURL("https://discord.gg/discord")
+    .setURL("https://github.com/RustyLub/-EAC--Helper")
     .setStyle(ButtonStyle.Link);
 
   const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents([
