@@ -9,6 +9,7 @@ import * as leaderboardCommand from './commands/economy/leaderboard';
 import * as languageCommand from './commands/utility/language';
 import * as automodCommand from './commands/utility/automod';
 import * as helpCommand from './commands/utility/help';
+import * as greetingsCommand from './commands/utility/greetings';
 
 export const commands = [
   banCommand,
@@ -21,7 +22,8 @@ export const commands = [
   leaderboardCommand,
   languageCommand,
   automodCommand,
-  helpCommand
+  helpCommand,
+  greetingsCommand
 ];
 
 import * as readyEvent from './events/ready';
