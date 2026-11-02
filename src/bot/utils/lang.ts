@@ -50,7 +50,7 @@ export const translations = {
     helpCategoryTitle: (emoji: string, label: string) => `${emoji} Команды: ${label}`,
     helpCategoryDesc: 'Нажмите на любую команду ниже, чтобы использовать её:\n\n**Команды**\n',
     helpBugReport: 'Сообщить о баге',
-    helpSupportServer: 'Сервер поддержки',
+    helpSupportServer: 'Репозиторий проекта',
     madeWithHeart: 'Сделано с ❤️'
   },
   en: {
@@ -90,7 +90,7 @@ export const translations = {
     helpCategoryTitle: (emoji: string, label: string) => `${emoji} ${label} Commands`,
     helpCategoryDesc: 'Click any command mention below to use it:\n\n**Commands**\n',
     helpBugReport: 'Report Bug',
-    helpSupportServer: 'Support Server',
+    helpSupportServer: 'Project Repository',
     madeWithHeart: 'Made with ❤️'
   }
 };
