@@ -22,13 +22,18 @@ export async function startBot() {
   }) as BotClient;
 
   client.commands = new Collection<string, Command>();
+  const registeredNames = new Set<string>();
 
   for (const command of commands) {
-    if ('data' in command && 'execute' in command) {
-      client.commands.set(command.data.name, command as unknown as Command);
-    } else {
-      console.warn('[Bot] A command is missing required data or execute properties.');
+    if (!('data' in command) || !('execute' in command) || typeof command.execute !== 'function') {
+      throw new Error('[Bot] A registered command is missing its slash-command data or execute handler.');
     }
+    const commandName = command.data.name;
+    if (registeredNames.has(commandName)) {
+      throw new Error(`[Bot] Duplicate slash-command name: ${commandName}`);
+    }
+    registeredNames.add(commandName);
+    client.commands.set(commandName, command as unknown as Command);
   }
 
   for (const event of events) {
