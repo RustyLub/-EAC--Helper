@@ -17,7 +17,7 @@ export async function deployCommands() {
     console.warn('[Bot] DISCORD_TOKEN is missing; skipping slash-command registration.');
     return;
   }
-  if (!clientId || clientId.startsWith('YOUR_') || !/^\\d{17,20}$/.test(clientId)) {
+  if (!clientId || clientId.startsWith('YOUR_') || !/^\d{17,20}$/.test(clientId)) {
     console.warn('[Bot] CLIENT_ID is missing; skipping slash-command registration.');
     return;
   }
