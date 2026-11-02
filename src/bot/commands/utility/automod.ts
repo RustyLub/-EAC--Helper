@@ -33,6 +33,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const language = await getGuildLanguage(interaction.guildId);
   const english = language === 'en';
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({ content: english ? 'Administrator permission is required.' : 'Требуются права администратора.', ephemeral: true });
+    return;
+  }
   const guildRef = db.collection('guilds').doc(interaction.guildId);
 
   try {
