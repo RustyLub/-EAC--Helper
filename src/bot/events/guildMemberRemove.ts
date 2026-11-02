@@ -1,4 +1,4 @@
-import { Events, GuildMember, TextChannel, EmbedBuilder } from 'discord.js';
+import { Events, GuildMember, EmbedBuilder } from 'discord.js';
 import { db } from '../firebase';
 
 export const name = Events.GuildMemberRemove;
@@ -17,8 +17,9 @@ export async function execute(member: GuildMember) {
     if (!data?.leave?.enabled || !data?.leave?.channelId) return;
 
     const fetchedChannel = await member.guild.channels.fetch(data.leave.channelId).catch(() => null);
-    if (!fetchedChannel?.isTextBased() || !('send' in fetchedChannel)) return;
-    const channel = fetchedChannel as TextChannel;
+    if (!fetchedChannel?.isSendable()) return;
+    const botMember = await member.guild.members.fetchMe().catch(() => null);
+    if (!botMember?.permissionsIn(fetchedChannel).has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) return;
 
     let message = data.leave.message || "**{user}** покинул(а) сервер **{server}**.";
     
@@ -33,7 +34,7 @@ export async function execute(member: GuildMember) {
       .setDescription(message)
       .setTimestamp();
 
-    await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+    await fetchedChannel.send({ embeds: [embed], allowedMentions: { parse: [] } });
 
   } catch (error) {
     console.error('Ошибка в guildMemberRemove:', error);
