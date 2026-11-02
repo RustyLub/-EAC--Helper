@@ -11,7 +11,11 @@ export const data = new SlashCommandBuilder()
       .setRequired(false));
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  const langId = await getGuildLanguage(interaction.guildId!);
+  if (!interaction.inGuild() || !interaction.guildId) {
+    await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
+    return;
+  }
+  const langId = await getGuildLanguage(interaction.guildId);
   const t = translations[langId];
 
   const target = interaction.options.getUser('target') || interaction.user;
