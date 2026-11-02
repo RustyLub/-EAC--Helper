@@ -7,7 +7,9 @@ export const data = new SlashCommandBuilder()
   .addUserOption(option => 
     option.setName('target')
       .setDescription('The user to mute')
-      .setRequired(true))
+      .setRequired(true)
+      .setMinValue(0)
+      .setMaxValue(40320))
   .addIntegerOption(option => 
     option.setName('duration')
       .setDescription('Duration in minutes (0 to unmute)')
@@ -25,7 +27,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const target = interaction.options.getUser('target');
   const duration = interaction.options.getInteger('duration')!;
   const reason = interaction.options.getString('reason') ?? 'No reason provided';
-  const member = interaction.guild?.members.cache.get(target!.id);
+  const member = target && interaction.guild ? await interaction.guild.members.fetch(target.id).catch(() => null) : null;
 
   if (!member) {
     await interaction.reply({ content: t.userNotFound, ephemeral: true });
