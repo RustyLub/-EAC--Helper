@@ -9,14 +9,12 @@ async function reportInteractionError(interaction: Interaction, error: unknown):
   const payload = { content: 'Не удалось выполнить действие. Попробуйте ещё раз позже.', ephemeral: true };
 
   try {
-    if (interaction.isRepliable()) {
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(payload);
-      } else {
-        await interaction.reply(payload);
-      }
-    } else if (interaction.isMessageComponent() && !interaction.deferred && !interaction.replied) {
-      await interaction.deferUpdate();
+    if (!interaction.isRepliable()) return;
+
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(payload);
+    } else {
+      await interaction.reply(payload);
     }
   } catch (replyError) {
     console.error('[Bot] Could not report interaction error to Discord:', replyError);
@@ -38,7 +36,7 @@ export async function execute(interaction: Interaction) {
 
     if (interaction.isStringSelectMenu() && interaction.customId === 'help_category_select') {
       const client = interaction.client as BotClient;
-      const helpCommand = client.commands.get('help') as (typeof client.commands extends never ? never : any);
+      const helpCommand = client.commands.get('help') as any;
       if (helpCommand && typeof helpCommand.handleSelect === 'function') {
         await helpCommand.handleSelect(interaction);
       } else {
