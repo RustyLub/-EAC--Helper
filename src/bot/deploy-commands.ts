@@ -17,7 +17,7 @@ export async function deployCommands() {
     console.warn('[Bot] DISCORD_TOKEN is missing; skipping slash-command registration.');
     return;
   }
-  if (!clientId || clientId === 'YOUR_CLIENT_ID') {
+  if (!clientId || clientId.startsWith('YOUR_') || !/^\\d{17,20}$/.test(clientId)) {
     console.warn('[Bot] CLIENT_ID is missing; skipping slash-command registration.');
     return;
   }
@@ -25,7 +25,7 @@ export async function deployCommands() {
   const rest = new REST({ version: '10' }).setToken(token);
   try {
     console.log(`[Bot] Registering ${commands.length} application commands.`);
-    if (process.env.GUILD_ID && process.env.GUILD_ID !== 'YOUR_GUILD_ID') {
+    if (process.env.GUILD_ID && /^\\d{17,20}$/.test(process.env.GUILD_ID)) {
       const data = await rest.put(
         Routes.applicationGuildCommands(clientId, process.env.GUILD_ID),
         { body: commands },
