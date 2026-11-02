@@ -1,8 +1,9 @@
 import express from "express";
 import path from "path";
+import { randomBytes } from "crypto";
 import { createServer as createViteServer } from "vite";
 import { startBot } from "./src/bot/index";
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -11,221 +12,211 @@ const __dirname = path.dirname(__filename);
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
+  const isProduction = process.env.NODE_ENV === "production";
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax" as const,
+  };
 
+  app.set("trust proxy", 1);
   app.use(cookieParser());
   app.use(express.json());
 
-  // API routes FIRST
-  app.get("/api/health", (req, res) => {
+  const getAppOrigin = () => {
+    const configured = process.env.APP_URL;
+    if (!configured) throw new Error("APP_URL is not configured");
+    return new URL(configured).origin;
+  };
+
+  const getRedirectUri = () => new URL("/auth/callback", getAppOrigin()).toString();
+
+  // Verify the signed-in Discord user can manage the requested guild.
+  const userCanManageGuild = async (token: string, guildId: string) => {
+    const response = await fetch("https://discord.com/api/users/@me/guilds", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return false;
+
+    const guilds = await response.json() as Array<{ id: string; permissions: string }>;
+    const guild = guilds.find((item) => item.id === guildId);
+    if (!guild) return false;
+
+    const permissions = BigInt(guild.permissions);
+    return (permissions & 0x8n) === 0x8n || (permissions & 0x20n) === 0x20n;
+  };
+
+  app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
   });
 
-  // Discord OAuth Routes
-  app.get("/api/auth/url", (req, res) => {
-    const origin = req.query.origin || process.env.APP_URL;
-    const redirectUri = `${origin}/auth/callback`;
+  // Discord OAuth2: use a server-configured redirect URI and one-time state.
+  app.get("/api/auth/url", (_req, res) => {
     const clientId = process.env.CLIENT_ID;
-    
-    if (!clientId) {
-      return res.status(500).json({ error: "Missing CLIENT_ID" });
+    if (!clientId) return res.status(500).json({ error: "Missing CLIENT_ID" });
+
+    let redirectUri: string;
+    try {
+      redirectUri = getRedirectUri();
+    } catch {
+      return res.status(500).json({ error: "APP_URL is not configured correctly" });
     }
+
+    const state = randomBytes(32).toString("hex");
+    res.cookie("discord_oauth_state", state, {
+      ...cookieOptions,
+      maxAge: 10 * 60 * 1000,
+    });
 
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
       response_type: "code",
       scope: "identify guilds",
+      state,
     });
-
     res.json({ url: `https://discord.com/oauth2/authorize?${params.toString()}` });
   });
 
   app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
-    const { code } = req.query;
+    const { code, state } = req.query;
+    const expectedState = req.cookies.discord_oauth_state;
+    res.clearCookie("discord_oauth_state", cookieOptions);
+
     if (!code || typeof code !== "string") {
-      return res.status(400).send("No code provided");
+      return res.status(400).send("Discord did not return an authorization code.");
+    }
+    if (!state || typeof state !== "string" || !expectedState || state !== expectedState) {
+      return res.status(403).send("OAuth state validation failed. Please close this window and try again.");
     }
 
     const clientId = process.env.CLIENT_ID;
     const clientSecret = process.env.CLIENT_SECRET;
-    
-    // We use the host and protocol to reconstruct the redirect URI if not using APP_URL
-    const origin = process.env.APP_URL || `http://${req.headers.host}`;
-    const redirectUri = `${origin}/auth/callback`;
+    if (!clientId || !clientSecret) {
+      return res.status(500).send("Discord OAuth credentials are not configured.");
+    }
 
     try {
+      const redirectUri = getRedirectUri();
       const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
-          client_id: clientId!,
-          client_secret: clientSecret!,
+          client_id: clientId,
+          client_secret: clientSecret,
           grant_type: "authorization_code",
           code,
           redirect_uri: redirectUri,
         }).toString(),
       });
 
-      const tokenData = await tokenResponse.json();
+      const tokenData = await tokenResponse.json() as {
+        access_token?: string;
+        expires_in?: number;
+        error?: string;
+        error_description?: string;
+      };
 
-      if (tokenData.error) {
-        throw new Error(tokenData.error_description || tokenData.error);
+      if (!tokenResponse.ok || !tokenData.access_token) {
+        throw new Error(tokenData.error_description || tokenData.error || "Discord token exchange failed");
       }
 
-      // Store the token in a cookie
       res.cookie("discord_token", tokenData.access_token, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        maxAge: tokenData.expires_in * 1000,
+        ...cookieOptions,
+        maxAge: Math.max(1, tokenData.expires_in || 3600) * 1000,
       });
 
-      res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS' }, '*');
-                window.close();
-              } else {
-                window.location.href = '/';
-              }
-            </script>
-            <p>Authentication successful. This window should close automatically.</p>
-          </body>
-        </html>
-      `);
-    } catch (error: any) {
-      console.error("OAuth error:", error);
-      res.status(500).send(`Authentication failed: ${error.message}`);
+      const appOrigin = getAppOrigin();
+      res.type("html").send(`<!doctype html>
+        <html><head><meta charset="utf-8"><title>Discord login</title></head>
+        <body><p>Авторизация успешна. Это окно можно закрыть.</p>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: "OAUTH_AUTH_SUCCESS" }, ${JSON.stringify(appOrigin)});
+              window.close();
+            } else {
+              window.location.replace("/");
+            }
+          </script>
+        </body></html>`);
+    } catch (error) {
+      console.error("Discord OAuth error:", error);
+      res.status(502).send("Не удалось завершить авторизацию Discord. Попробуйте ещё раз.");
     }
   });
 
-  app.post("/api/auth/logout", (req, res) => {
-    res.clearCookie("discord_token", {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-    });
+  app.post("/api/auth/logout", (_req, res) => {
+    res.clearCookie("discord_token", cookieOptions);
     res.json({ success: true });
   });
 
-  // API to get user info and guilds
   app.get("/api/user", async (req, res) => {
     const token = req.cookies.discord_token;
-    if (!token) {
-      return res.status(401).json({ error: "Not authenticated" });
-    }
+    if (!token) return res.status(401).json({ error: "Not authenticated" });
 
     try {
-      const userResponse = await fetch("https://discord.com/api/users/@me", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const response = await fetch("https://discord.com/api/users/@me", {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      if (!userResponse.ok) {
-        if (userResponse.status === 401) {
-          res.clearCookie("discord_token");
-        }
-        return res.status(userResponse.status).json({ error: "Failed to fetch user" });
+      if (!response.ok) {
+        if (response.status === 401) res.clearCookie("discord_token", cookieOptions);
+        return res.status(response.status).json({ error: "Failed to fetch user" });
       }
-
-      const userData = await userResponse.json();
-      res.json(userData);
-    } catch (error) {
-      res.status(500).json({ error: "Server error" });
+      res.json(await response.json());
+    } catch {
+      res.status(502).json({ error: "Discord API unavailable" });
     }
   });
 
   app.get("/api/guilds", async (req, res) => {
     const token = req.cookies.discord_token;
-    if (!token) {
-      return res.status(401).json({ error: "Not authenticated" });
-    }
+    if (!token) return res.status(401).json({ error: "Not authenticated" });
 
     try {
-      const guildsResponse = await fetch("https://discord.com/api/users/@me/guilds", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const response = await fetch("https://discord.com/api/users/@me/guilds", {
+        headers: { Authorization: `Bearer ${token}` },
       });
+      if (!response.ok) return res.status(response.status).json({ error: "Failed to fetch guilds" });
 
-      if (!guildsResponse.ok) {
-        return res.status(guildsResponse.status).json({ error: "Failed to fetch guilds" });
-      }
-
-      const guildsData = await guildsResponse.json();
-      
-      // Filter for guilds where user has MANAGE_GUILD or ADMINISTRATOR
-      // Permission bitwise: ADMINISTRATOR is 0x8, MANAGE_GUILD is 0x20
-      const adminGuilds = guildsData.filter((guild: any) => {
+      const guilds = await response.json() as Array<{ permissions: string }>;
+      const manageableGuilds = guilds.filter((guild) => {
         const permissions = BigInt(guild.permissions);
-        return (permissions & 8n) === 8n || (permissions & 32n) === 32n;
+        return (permissions & 0x8n) === 0x8n || (permissions & 0x20n) === 0x20n;
       });
-
-      res.json(adminGuilds);
-    } catch (error) {
-      res.status(500).json({ error: "Server error" });
+      res.json(manageableGuilds);
+    } catch {
+      res.status(502).json({ error: "Discord API unavailable" });
     }
   });
 
-  app.get("/api/guilds/:guildId/channels", async (req, res) => {
-    const token = req.cookies.discord_token;
-    if (!token) return res.status(401).json({ error: "Not authenticated" });
+  const guildResourceHandler = (resource: "channels" | "roles") => async (req: express.Request, res: express.Response) => {
+    const userToken = req.cookies.discord_token;
+    if (!userToken) return res.status(401).json({ error: "Not authenticated" });
 
-    const botToken = process.env.DISCORD_TOKEN;
-    if (!botToken) return res.status(500).json({ error: "Bot token not configured" });
-
+    const guildId = req.params.guildId;
     try {
-      const response = await fetch(`https://discord.com/api/guilds/${req.params.guildId}/channels`, {
-        headers: {
-          Authorization: `Bot ${botToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        return res.status(response.status).json({ error: "Failed to fetch channels" });
+      if (!(await userCanManageGuild(userToken, guildId))) {
+        return res.status(403).json({ error: "You do not have permission to manage this server" });
       }
 
-      const channels = await response.json();
-      res.json(channels);
-    } catch (error) {
-      res.status(500).json({ error: "Server error" });
-    }
-  });
+      const botToken = process.env.DISCORD_TOKEN;
+      if (!botToken) return res.status(500).json({ error: "Bot token not configured" });
 
-  app.get("/api/guilds/:guildId/roles", async (req, res) => {
-    const token = req.cookies.discord_token;
-    if (!token) return res.status(401).json({ error: "Not authenticated" });
-
-    const botToken = process.env.DISCORD_TOKEN;
-    if (!botToken) return res.status(500).json({ error: "Bot token not configured" });
-
-    try {
-      const response = await fetch(`https://discord.com/api/guilds/${req.params.guildId}/roles`, {
-        headers: {
-          Authorization: `Bot ${botToken}`,
-        },
+      const response = await fetch(`https://discord.com/api/guilds/${encodeURIComponent(guildId)}/${resource}`, {
+        headers: { Authorization: `Bot ${botToken}` },
       });
-
-      if (!response.ok) {
-        return res.status(response.status).json({ error: "Failed to fetch roles" });
-      }
-
-      const roles = await response.json();
-      res.json(roles);
-    } catch (error) {
-      res.status(500).json({ error: "Server error" });
+      if (!response.ok) return res.status(response.status).json({ error: `Failed to fetch ${resource}` });
+      res.json(await response.json());
+    } catch {
+      res.status(502).json({ error: "Discord API unavailable" });
     }
-  });
+  };
 
-  // Start Discord Bot
+  app.get("/api/guilds/:guildId/channels", guildResourceHandler("channels"));
+  app.get("/api/guilds/:guildId/roles", guildResourceHandler("roles"));
+
   startBot().catch(console.error);
 
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -233,10 +224,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
