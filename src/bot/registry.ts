@@ -10,6 +10,7 @@ import * as languageCommand from './commands/utility/language';
 import * as automodCommand from './commands/utility/automod';
 import * as helpCommand from './commands/utility/help';
 import * as greetingsCommand from './commands/utility/greetings';
+import * as customCommand from './commands/utility/customcommand';
 
 export const commands = [
   banCommand,
@@ -23,7 +24,8 @@ export const commands = [
   languageCommand,
   automodCommand,
   helpCommand,
-  greetingsCommand
+  greetingsCommand,
+  customCommand
 ];
 
 import * as readyEvent from './events/ready';
