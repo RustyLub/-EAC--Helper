@@ -9,8 +9,7 @@ type EventHandler = (...args: any[]) => unknown;
 export async function startBot() {
   const token = process.env.DISCORD_TOKEN;
   if (!token || token === 'YOUR_DISCORD_BOT_TOKEN') {
-    console.warn('[Bot] DISCORD_TOKEN is not configured; the web API will start without the Discord bot.');
-    return;
+    throw new Error('DISCORD_TOKEN is not configured. Fill in the .env file.');
   }
 
   const client = new Client({
@@ -44,15 +43,13 @@ export async function startBot() {
   try {
     await deployCommands();
   } catch (error) {
-    // A temporary command-registration failure must not prevent the bot from
-    // connecting and serving commands that are already registered.
     console.error('[Bot] Slash-command registration failed; continuing startup:', error);
   }
 
   try {
     await client.login(token);
   } catch (error) {
-    console.error('[Bot] Discord login failed:', error);
     client.destroy();
+    throw error;
   }
 }
