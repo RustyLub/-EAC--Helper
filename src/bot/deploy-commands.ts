@@ -2,51 +2,48 @@ import { REST, Routes } from 'discord.js';
 import 'dotenv/config';
 import { commands as commandModules } from './registry';
 
-const commands = [];
-
-for (const command of commandModules) {
+const commands = commandModules.flatMap((command) => {
   if ('data' in command && 'execute' in command) {
-    commands.push(command.data.toJSON());
-  } else {
-    console.log(`[WARNING] Команда не содержит обязательных свойств "data" или "execute".`);
+    return [command.data.toJSON()];
   }
-}
-
-const rest = new REST().setToken(process.env.DISCORD_TOKEN!);
+  console.warn('[Bot] A command is missing required data or execute properties.');
+  return [];
+});
 
 export async function deployCommands() {
+  const token = process.env.DISCORD_TOKEN;
+  const clientId = process.env.CLIENT_ID;
+  if (!token || token === 'YOUR_DISCORD_BOT_TOKEN') {
+    console.warn('[Bot] DISCORD_TOKEN is missing; skipping slash-command registration.');
+    return;
+  }
+  if (!clientId || clientId === 'YOUR_CLIENT_ID') {
+    console.warn('[Bot] CLIENT_ID is missing; skipping slash-command registration.');
+    return;
+  }
+
+  const rest = new REST({ version: '10' }).setToken(token);
   try {
-    console.log(`Начато обновление ${commands.length} application (/) commands.`);
-
-    let data: any;
-    
-    if (!process.env.CLIENT_ID || process.env.CLIENT_ID === 'YOUR_CLIENT_ID') {
-      console.warn('[WARNING] Отсутствует CLIENT_ID. Команды не будут зарегистрированы.');
-      return;
-    }
-
+    console.log(`[Bot] Registering ${commands.length} application commands.`);
     if (process.env.GUILD_ID && process.env.GUILD_ID !== 'YOUR_GUILD_ID') {
-        data = await rest.put(
-            Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-            { body: commands },
-        );
-        console.log(`Успешно обновлено ${data.length} application (/) commands для сервера.`);
+      const data = await rest.put(
+        Routes.applicationGuildCommands(clientId, process.env.GUILD_ID),
+        { body: commands },
+      ) as unknown[];
+      console.log(`[Bot] Registered ${data.length} commands for the configured guild.`);
     } else {
-        data = await rest.put(
-            Routes.applicationCommands(process.env.CLIENT_ID),
-            { body: commands },
-        );
-        console.log(`Успешно обновлено ${data.length} глобальных application (/) commands.`);
+      const data = await rest.put(
+        Routes.applicationCommands(clientId),
+        { body: commands },
+      ) as unknown[];
+      console.log(`[Bot] Registered ${data.length} global commands.`);
     }
-
   } catch (error: any) {
     if (error?.code === 50001) {
-      console.error('Ошибка при обновлении команд: DiscordAPIError[50001]: Missing Access');
-      console.error('--> Это означает, что бот не имеет доступа к серверу (GUILD_ID) или у него нет права создавать слеш-команды.');
-      console.error('--> Убедитесь, что вы пригласили бота на сервер по ссылке из вкладки OAuth2 с галочками "bot" и "applications.commands"!');
+      console.error('[Bot] Discord returned Missing Access. Check the application ID, bot installation, and command-registration permissions.');
     } else {
-      console.error('Ошибка при обновлении команд:', error);
+      console.error('[Bot] Slash-command registration failed:', error);
     }
+    throw error;
   }
 }
-
