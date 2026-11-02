@@ -33,7 +33,7 @@ export async function execute(member: GuildMember) {
       .setDescription(message)
       .setTimestamp();
 
-    await channel.send({ embeds: [embed] });
+    await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
 
   } catch (error) {
     console.error('Ошибка в guildMemberRemove:', error);
