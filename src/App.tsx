@@ -6,7 +6,22 @@ import {
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "https://eac-helper.onrender.com").replace(/\/$/, "");
-const apiFetch = (path: string, init: RequestInit = {}) => fetch(`${API_BASE}${path}`, { ...init, credentials: "include" });
+
+async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  try {
+    return await fetch(`${API_BASE}${path}`, {
+      ...init,
+      mode: "cors",
+      credentials: "include",
+      headers: { Accept: "application/json", ...init.headers },
+    });
+  } catch (error) {
+    const details = error instanceof Error ? error.message : "Unknown network error";
+    throw new Error(
+      `Не удалось связаться с API (${API_BASE}). Проверь, что Render-сервис запущен, адрес API указан верно, а CORS разрешает ${window.location.origin}. Подробности браузера: ${details}`,
+    );
+  }
+}
 
 type DiscordUser = {
   id: string;
@@ -64,12 +79,15 @@ export default function App() {
         setUser(null);
         setGuilds([]);
         setSelectedGuild(null);
+        if (userResponse.status !== 401) {
+          throw new Error(`API вернул HTTP ${userResponse.status} при проверке сессии.`);
+        }
         return;
       }
       const userData = await userResponse.json() as DiscordUser;
       setUser(userData);
       const guildResponse = await apiFetch("/api/guilds");
-      if (!guildResponse.ok) throw new Error("Не удалось загрузить список серверов Discord.");
+      if (!guildResponse.ok) throw new Error(`Не удалось загрузить список серверов Discord (HTTP ${guildResponse.status}).`);
       const guildData = await guildResponse.json() as Guild[];
       setGuilds(guildData);
     } catch (e) {
@@ -102,7 +120,7 @@ export default function App() {
       const response = await apiFetch("/api/auth/url");
       if (!response.ok) {
         const details = await response.json().catch(() => ({})) as { error?: string };
-        throw new Error(details.error || "Не удалось начать вход через Discord. Проверь, запущен ли сервер авторизации.");
+        throw new Error(details.error || `Сервер авторизации вернул HTTP ${response.status}.`);
       }
       const data = await response.json() as { url: string };
       popup.location.href = data.url;
@@ -115,7 +133,11 @@ export default function App() {
   };
 
   const logout = async () => {
-    await apiFetch("/api/auth/logout", { method: "POST" });
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось завершить сеанс на сервере.");
+    }
     setUser(null);
     setGuilds([]);
     setSelectedGuild(null);
@@ -128,7 +150,7 @@ export default function App() {
       const response = await apiFetch(`/api/guilds/${encodeURIComponent(guildId)}/settings`);
       if (!response.ok) throw new Error(response.status === 503
         ? "Хранилище настроек недоступно. Проверь Firebase Admin."
-        : "Не удалось загрузить настройки сервера.");
+        : `Не удалось загрузить настройки сервера (HTTP ${response.status}).`);
       const data = await response.json() as { modules?: Record<string, boolean> };
       setModuleEnabled(data.modules || {});
     } catch (e) {
@@ -150,7 +172,7 @@ export default function App() {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({})) as { error?: string };
-        throw new Error(data.error || "Не удалось сохранить настройку.");
+        throw new Error(data.error || `Не удалось сохранить настройку (HTTP ${response.status}).`);
       }
       const data = await response.json() as { modules?: Record<string, boolean> };
       setModuleEnabled(data.modules || {});
