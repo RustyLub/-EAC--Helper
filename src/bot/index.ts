@@ -33,10 +33,15 @@ export async function startBot() {
 
   for (const event of events) {
     const handler = event.execute as EventHandler;
+    const guardedHandler = (...args: unknown[]) => {
+      Promise.resolve(handler(...args)).catch(error => {
+        console.error(`[Bot] Event handler "${event.name}" failed:`, error);
+      });
+    };
     if (event.once) {
-      client.once(event.name as any, (...args: unknown[]) => { void handler(...args); });
+      client.once(event.name as any, guardedHandler);
     } else {
-      client.on(event.name as any, (...args: unknown[]) => { void handler(...args); });
+      client.on(event.name as any, guardedHandler);
     }
   }
 
