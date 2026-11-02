@@ -40,6 +40,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   const t = translations[await getGuildLanguage(interaction.guildId!)];
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({ content: t.noPermission, ephemeral: true });
+    return;
+  }
+
   const targetChannel = interaction.options.getChannel('channel', true);
   if (!(targetChannel instanceof TextChannel) && !(targetChannel instanceof NewsChannel)) {
     await interaction.reply({ content: t.newsError, ephemeral: true });
