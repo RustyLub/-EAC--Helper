@@ -93,6 +93,9 @@ function generateCategoryEmbed(categoryKey: string, appCommands: any, lang: 'ru'
   const t = translations[lang];
   const categories = getCategories(lang);
   const category = categories[categoryKey as keyof typeof categories];
+  if (!category) {
+    return new EmbedBuilder().setColor('#ED4245').setDescription(lang === 'ru' ? 'Неизвестная категория.' : 'Unknown category.');
+  }
   
   let commandsText = '';
   for (const cmd of category.commands) {
@@ -150,7 +153,11 @@ function generateComponents(selectedCategory: string, lang: 'ru' | 'en') {
 }
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  const lang = await getGuildLanguage(interaction.guildId!);
+  if (!interaction.inGuild() || !interaction.guildId) {
+    await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
+    return;
+  }
+  const lang = await getGuildLanguage(interaction.guildId);
   const embed = generateMainEmbed(interaction.client, lang);
   const components = generateComponents('home', lang);
 
@@ -161,7 +168,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 }
 
 export async function handleSelect(interaction: StringSelectMenuInteraction) {
-  const lang = await getGuildLanguage(interaction.guildId!);
+  if (!interaction.inGuild() || !interaction.guildId) {
+    await interaction.reply({ content: 'Это меню доступно только на сервере.', ephemeral: true });
+    return;
+  }
+  const lang = await getGuildLanguage(interaction.guildId);
   const selectedCategory = interaction.values[0];
   
   let embed;
