@@ -1,49 +1,34 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { getGuildLanguage, translations } from '../../utils/lang';
+import { resolveModerationTarget, safeReason } from '../../utils/moderation';
 
 export const data = new SlashCommandBuilder()
   .setName('mute')
   .setDescription('Mute (timeout) a user')
-  .addUserOption(option => 
-    option.setName('target')
-      .setDescription('The user to mute')
-      .setRequired(true))
-  .addIntegerOption(option => 
-    option.setName('duration')
-      .setDescription('Duration in minutes (0 to unmute)')
-      .setRequired(true)
-      .setMinValue(0)
-      .setMaxValue(40320))
-  .addStringOption(option => 
-    option.setName('reason')
-      .setDescription('Reason for the mute')
-      .setRequired(false))
+  .addUserOption(option => option.setName('target').setDescription('The user to mute').setRequired(true))
+  .addIntegerOption(option => option.setName('duration').setDescription('Duration in minutes (0 to unmute)').setRequired(true).setMinValue(0).setMaxValue(40320))
+  .addStringOption(option => option.setName('reason').setDescription('Reason for the mute').setMaxLength(500))
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  const langId = await getGuildLanguage(interaction.guildId!);
-  const t = translations[langId];
-
-  const target = interaction.options.getUser('target');
-  const duration = interaction.options.getInteger('duration')!;
-  const reason = interaction.options.getString('reason') ?? 'No reason provided';
-  const member = target && interaction.guild ? await interaction.guild.members.fetch(target.id).catch(() => null) : null;
-
-  if (!member) {
-    await interaction.reply({ content: t.userNotFound, ephemeral: true });
+  const lang = await getGuildLanguage(interaction.guildId ?? '');
+  const t = translations[lang];
+  const targetUser = interaction.options.getUser('target', true);
+  const duration = interaction.options.getInteger('duration', true);
+  const reason = safeReason(interaction.options.getString('reason'));
+  const result = await resolveModerationTarget(interaction, targetUser.id, PermissionFlagsBits.ModerateMembers);
+  if (!result.ok) {
+    await interaction.reply({ content: result.message, ephemeral: true });
     return;
   }
 
   try {
-    if (duration === 0) {
-      await member.timeout(null, reason);
-      await interaction.reply({ content: t.unmuted(target!.tag) });
-    } else {
-      await member.timeout(duration * 60 * 1000, reason);
-      await interaction.reply({ content: t.muted(target!.tag, `${duration}m`, reason) });
-    }
-  } catch (err) {
-    console.error(err);
+    await result.target.timeout(duration === 0 ? null : duration * 60_000, `${reason} | Moderator: ${interaction.user.tag}`);
+    await interaction.reply({
+      content: duration === 0 ? t.unmuted(targetUser.tag) : t.muted(targetUser.tag, `${duration}m`, reason),
+    });
+  } catch (error) {
+    console.error('[Command:mute] Failed:', error);
     await interaction.reply({ content: t.noPermission, ephemeral: true });
   }
 }
