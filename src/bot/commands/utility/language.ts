@@ -21,6 +21,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return;
   }
 
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({ content: translations.ru.noPermission, ephemeral: true });
+    return;
+  }
+
   const newLang = interaction.options.getString('lang', true) as 'ru' | 'en';
 
   try {
