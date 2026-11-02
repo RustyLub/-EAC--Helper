@@ -50,7 +50,8 @@ function getCategories(lang: 'ru' | 'en') {
       commands: [
         { name: 'language', desc: lang === 'ru' ? 'Установить язык сервера (ru/en).' : 'Set the server language (ru/en).' },
         { name: 'automod', desc: lang === 'ru' ? 'Настроить автомодерацию.' : 'Configure automatic moderation.' },
-        { name: 'help', desc: lang === 'ru' ? 'Показать интерактивное меню помощи.' : 'Shows the interactive help menu.' }
+        { name: 'help', desc: lang === 'ru' ? 'Показать интерактивное меню помощи.' : 'Shows the interactive help menu.' },
+        { name: 'greetings', desc: lang === 'ru' ? 'Настроить приветствия и сообщения об уходе.' : 'Configure welcome and leave messages.' }
       ]
     }
   };
