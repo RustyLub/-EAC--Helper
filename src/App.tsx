@@ -136,10 +136,9 @@ export default function App() {
     fetchUserData();
 
     const handleMessage = (event: MessageEvent) => {
-      const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
-        return;
-      }
+      // Accept the OAuth completion message only from this app and its popup.
+      if (event.origin !== window.location.origin) return;
+      if (!event.source || event.source === window) return;
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
         fetchUserData();
       }
