@@ -65,19 +65,33 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         await interaction.reply({ content: english ? 'Response cannot be empty.' : 'Ответ не может быть пустым.', ephemeral: true });
         return;
       }
-      await ref.set({
-        customCommands: { [name]: response },
-        updatedAt: new Date().toISOString(),
-        updatedBy: interaction.user.id,
-      }, { merge: true });
+      await db.runTransaction(async transaction => {
+        const snapshot = await transaction.get(ref);
+        const stored = snapshot.data()?.customCommands;
+        const existing = stored && typeof stored === 'object' && !Array.isArray(stored)
+          ? stored as Record<string, unknown>
+          : {};
+        transaction.set(ref, {
+          customCommands: { ...existing, [name]: response },
+          updatedAt: new Date().toISOString(),
+          updatedBy: interaction.user.id,
+        }, { merge: true });
+      });
       await interaction.reply({ content: english ? `Command ` + '`!' + name + '`' + ` saved.` : `Команда ` + '`!' + name + '`' + ` сохранена.`, ephemeral: true });
       return;
     }
 
-    await ref.update({
-      [`customCommands.${name}`]: FieldValue.delete(),
-      updatedAt: new Date().toISOString(),
-      updatedBy: interaction.user.id,
+    await db.runTransaction(async transaction => {
+      const snapshot = await transaction.get(ref);
+      const stored = snapshot.data()?.customCommands;
+      if (!stored || typeof stored !== 'object' || Array.isArray(stored) || !(name in stored)) return;
+      const nextCommands = { ...(stored as Record<string, unknown>) };
+      delete nextCommands[name];
+      transaction.set(ref, {
+        customCommands: nextCommands,
+        updatedAt: new Date().toISOString(),
+        updatedBy: interaction.user.id,
+      }, { merge: true });
     });
     await interaction.reply({ content: english ? `Command ` + '`!' + name + '`' + ` deleted (if it existed).` : `Команда ` + '`!' + name + '`' + ` удалена, если существовала.`, ephemeral: true });
   } catch (error) {
