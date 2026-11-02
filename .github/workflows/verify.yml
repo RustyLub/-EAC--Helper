@@ -21,3 +21,22 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run lint
+
+  windows-verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Verify Windows prerequisites
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          git --version
+          if ([int](node -p "process.versions.node.split('.')[0]") -lt 22) { throw "Node.js 22 or newer is required." }
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
