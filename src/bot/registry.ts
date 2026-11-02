@@ -7,6 +7,7 @@ import * as newsCommand from './commands/news/news';
 import * as rankCommand from './commands/economy/rank';
 import * as leaderboardCommand from './commands/economy/leaderboard';
 import * as languageCommand from './commands/utility/language';
+import * as automodCommand from './commands/utility/automod';
 import * as helpCommand from './commands/utility/help';
 
 export const commands = [
@@ -19,6 +20,7 @@ export const commands = [
   rankCommand,
   leaderboardCommand,
   languageCommand,
+  automodCommand,
   helpCommand
 ];
 
