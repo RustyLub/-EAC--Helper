@@ -13,11 +13,26 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
   const isProduction = process.env.NODE_ENV === "production";
+  const frontendOrigin = (process.env.FRONTEND_URL || "https://rustylub.github.io").replace(/\/$/, "");
   const cookieOptions = {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "lax" as const,
+    sameSite: (isProduction ? "none" : "lax") as "none" | "lax",
   };
+
+  // GitHub Pages and the Render API are on different origins.
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin === frontendOrigin || (!isProduction && origin === "http://localhost:5173")) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Vary", "Origin");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS");
+    }
+    if (req.method === "OPTIONS") return res.sendStatus(204);
+    next();
+  });
 
   app.set("trust proxy", 1);
   app.use(cookieParser());
@@ -126,7 +141,7 @@ async function startServer() {
         maxAge: Math.max(1, tokenData.expires_in || 3600) * 1000,
       });
 
-      const appOrigin = getAppOrigin();
+      const appOrigin = frontendOrigin;
       res.type("html").send(`<!doctype html>
         <html><head><meta charset="utf-8"><title>Discord login</title></head>
         <body><p>Авторизация успешна. Это окно можно закрыть.</p>
