@@ -3,6 +3,7 @@ import {
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from 'discord.js';
+import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '../../firebase';
 import { getGuildLanguage } from '../../utils/lang';
 
@@ -84,13 +85,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const snapshot = await transaction.get(ref);
       const stored = snapshot.data()?.customCommands;
       if (!stored || typeof stored !== 'object' || Array.isArray(stored) || !(name in stored)) return;
-      const nextCommands = { ...(stored as Record<string, unknown>) };
-      delete nextCommands[name];
-      transaction.set(ref, {
-        customCommands: nextCommands,
+      transaction.update(ref, {
+        [`customCommands.${name}`]: FieldValue.delete(),
         updatedAt: new Date().toISOString(),
         updatedBy: interaction.user.id,
-      }, { merge: true });
+      });
     });
     await interaction.reply({ content: english ? `Command ` + '`!' + name + '`' + ` deleted (if it existed).` : `Команда ` + '`!' + name + '`' + ` удалена, если существовала.`, ephemeral: true });
   } catch (error) {
