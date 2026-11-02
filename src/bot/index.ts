@@ -4,6 +4,8 @@ import { BotClient, Command } from './types';
 import { deployCommands } from './deploy-commands';
 import { commands, events } from './registry';
 
+type EventHandler = (...args: any[]) => unknown;
+
 export async function startBot() {
   const client = new Client({
     intents: [
@@ -15,21 +17,20 @@ export async function startBot() {
 
   client.commands = new Collection<string, Command>();
 
-  // Загрузка команд
   for (const command of commands) {
     if ('data' in command && 'execute' in command) {
       client.commands.set(command.data.name, command as unknown as Command);
     } else {
-      console.log(`[WARNING] Команда не содержит обязательных свойств "data" или "execute".`);
+      console.log('[WARNING] Команда не содержит обязательных свойств "data" или "execute".');
     }
   }
 
-  // Загрузка событий
   for (const event of events) {
+    const handler = event.execute as EventHandler;
     if (event.once) {
-      client.once(event.name, (...args) => event.execute(...args));
+      client.once(event.name as any, (...args: any[]) => { void handler(...args); });
     } else {
-      client.on(event.name, (...args) => event.execute(...args));
+      client.on(event.name as any, (...args: any[]) => { void handler(...args); });
     }
   }
 
@@ -44,4 +45,3 @@ export async function startBot() {
     console.error('Ошибка входа Discord-бота:', error);
   }
 }
-
