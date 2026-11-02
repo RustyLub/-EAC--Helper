@@ -5,6 +5,8 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    // GitHub Pages serves this project from /-EAC--Helper/; Render serves it from /.
+    base: process.env.GITHUB_ACTIONS === 'true' ? '/-EAC--Helper/' : '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
