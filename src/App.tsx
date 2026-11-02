@@ -49,6 +49,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [moduleEnabled, setModuleEnabled] = useState<Record<string, boolean>>({});
+  const [savingModule, setSavingModule] = useState(false);
 
   const loadSession = useCallback(async () => {
     setLoading(true);
@@ -108,6 +110,46 @@ export default function App() {
     setActiveModule(null);
   };
 
+  const loadGuildSettings = useCallback(async (guildId: string) => {
+    setError("");
+    try {
+      const response = await fetch(`/api/guilds/${encodeURIComponent(guildId)}/settings`);
+      if (!response.ok) throw new Error(response.status === 503
+        ? "Хранилище настроек недоступно. Проверь Firebase Admin."
+        : "Не удалось загрузить настройки сервера.");
+      const data = await response.json() as { modules?: Record<string, boolean> };
+      setModuleEnabled(data.modules || {});
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка загрузки настроек.");
+    }
+  }, []);
+
+  const toggleModule = async (moduleId: string, enabled: boolean) => {
+    if (!selectedGuild || savingModule) return;
+    const previous = moduleEnabled[moduleId] === true;
+    setModuleEnabled((current) => ({ ...current, [moduleId]: enabled }));
+    setSavingModule(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/guilds/${encodeURIComponent(selectedGuild.id)}/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modules: { [moduleId]: enabled } }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error || "Не удалось сохранить настройку.");
+      }
+      const data = await response.json() as { modules?: Record<string, boolean> };
+      setModuleEnabled(data.modules || {});
+    } catch (e) {
+      setModuleEnabled((current) => ({ ...current, [moduleId]: previous }));
+      setError(e instanceof Error ? e.message : "Ошибка сохранения.");
+    } finally {
+      setSavingModule(false);
+    }
+  };
+
   const filteredModules = useMemo(
     () => modules.filter((item) => (item.name + " " + item.description + " " + item.category).toLowerCase().includes(search.toLowerCase())),
     [search],
@@ -159,7 +201,7 @@ export default function App() {
           {guilds.length ? (
             <div className="server-grid">
               {guilds.map((guild) => (
-                <button className="server-card" key={guild.id} onClick={() => { setSelectedGuild(guild); setActiveModule(null); }}>
+                <button className="server-card" key={guild.id} onClick={() => { setSelectedGuild(guild); setActiveModule(null); void loadGuildSettings(guild.id); }}>
                   {guild.icon ? <img className="server-icon" src={`https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128`} alt="" /> : <span className="server-icon server-fallback">{initials(guild.name)}</span>}
                   <span className="server-info"><b>{guild.name}</b><small>Открыть панель управления</small></span>
                   <ChevronRight size={19} />
@@ -193,7 +235,7 @@ export default function App() {
             <>
               <button className="back-link" onClick={() => setActiveModule(null)}><ArrowLeft size={16} /> Все модули</button>
               <div className="module-heading"><span className="module-icon"><activeModule.icon size={23} /></span><div><div className="page-kicker">{activeModule.category}</div><h1>{activeModule.name}</h1></div></div>
-              <section className="work-panel"><div className="work-panel-icon"><Activity size={24} /></div><h2>Модуль ещё не подключён</h2><p>Сейчас создаётся основа панели. Настройки появятся здесь после подключения реальной логики модуля к Discord-боту и хранилищу сервера.</p><span className="status-pill">В разработке</span></section>
+              <section className="work-panel"><div className="work-panel-icon"><Activity size={24} /></div><h2>Настройки модуля</h2><p>Состояние модуля сохраняется отдельно для этого Discord-сервера в Firebase.</p><div className="module-setting-row"><div><b>{activeModule.name}</b><small>{moduleEnabled[activeModule.id] ? "Модуль включён" : "Модуль выключен"}</small></div><button className={`toggle ${moduleEnabled[activeModule.id] ? "toggle-on" : ""}`} role="switch" aria-checked={moduleEnabled[activeModule.id] === true} disabled={savingModule} onClick={() => void toggleModule(activeModule.id, !moduleEnabled[activeModule.id])}><span /></button></div>{savingModule && <small className="save-state">Сохранение…</small>}{error && <div className="notice notice-error">{error}</div>}<span className="status-pill">Настройка сохраняется на сервере</span></section>
             </>
           ) : (
             <>
