@@ -16,8 +16,9 @@ export async function execute(member: GuildMember) {
     const data = guildDoc.data();
     if (!data?.leave?.enabled || !data?.leave?.channelId) return;
 
-    const channel = member.guild.channels.cache.get(data.leave.channelId) as TextChannel;
-    if (!channel || !channel.isTextBased()) return;
+    const fetchedChannel = await member.guild.channels.fetch(data.leave.channelId).catch(() => null);
+    if (!fetchedChannel?.isTextBased() || !('send' in fetchedChannel)) return;
+    const channel = fetchedChannel as TextChannel;
 
     let message = data.leave.message || "**{user}** покинул(а) сервер **{server}**.";
     
