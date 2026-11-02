@@ -9,11 +9,13 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || "https://eac-helper.onren
 
 async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   try {
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
     return await fetch(`${API_BASE}${path}`, {
       ...init,
       mode: "cors",
       credentials: "include",
-      headers: { Accept: "application/json", ...init.headers },
+      headers,
     });
   } catch (error) {
     const details = error instanceof Error ? error.message : "Unknown network error";
