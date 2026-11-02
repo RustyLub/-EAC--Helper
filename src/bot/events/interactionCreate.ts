@@ -4,41 +4,48 @@ import { BotClient } from '../types';
 export const name = Events.InteractionCreate;
 export const once = false;
 
-export async function execute(interaction: Interaction) {
-  if (interaction.isChatInputCommand()) {
-    const client = interaction.client as BotClient;
-    const command = client.commands.get(interaction.commandName);
+async function reportInteractionError(interaction: Interaction, error: unknown): Promise<void> {
+  console.error('[Bot] Interaction failed:', error);
+  const payload = { content: 'Не удалось выполнить действие. Попробуйте ещё раз позже.', ephemeral: true };
 
-    if (!command) {
-      console.error(`Команда ${interaction.commandName} не найдена.`);
+  try {
+    if (interaction.isRepliable()) {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(payload);
+      } else {
+        await interaction.reply(payload);
+      }
+    } else if (interaction.isMessageComponent() && !interaction.deferred && !interaction.replied) {
+      await interaction.deferUpdate();
+    }
+  } catch (replyError) {
+    console.error('[Bot] Could not report interaction error to Discord:', replyError);
+  }
+}
+
+export async function execute(interaction: Interaction) {
+  try {
+    if (interaction.isChatInputCommand()) {
+      const client = interaction.client as BotClient;
+      const command = client.commands.get(interaction.commandName);
+      if (!command) {
+        await interaction.reply({ content: 'Эта команда больше не зарегистрирована. Обновите команды бота.', ephemeral: true });
+        return;
+      }
+      await command.execute(interaction);
       return;
     }
 
-    try {
-      await command.execute(interaction);
-    } catch (error) {
-      console.error(`Ошибка при выполнении команды ${interaction.commandName}:`, error);
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: 'Произошла ошибка при выполнении этой команды!', ephemeral: true });
-      } else {
-        await interaction.reply({ content: 'Произошла ошибка при выполнении этой команды!', ephemeral: true });
-      }
-    }
-  } else if (interaction.isStringSelectMenu()) {
-    if (interaction.customId === 'help_category_select') {
+    if (interaction.isStringSelectMenu() && interaction.customId === 'help_category_select') {
       const client = interaction.client as BotClient;
-      const helpCommand = client.commands.get('help');
-      if (helpCommand && 'handleSelect' in helpCommand) {
-        try {
-          await (helpCommand as any).handleSelect(interaction);
-        } catch (error) {
-          console.error(`Ошибка в select menu help:`, error);
-        }
+      const helpCommand = client.commands.get('help') as (typeof client.commands extends never ? never : any);
+      if (helpCommand && typeof helpCommand.handleSelect === 'function') {
+        await helpCommand.handleSelect(interaction);
+      } else {
+        await interaction.reply({ content: 'Меню помощи устарело. Выполните /help ещё раз.', ephemeral: true });
       }
     }
-  } else if (interaction.isButton()) {
-    if (interaction.customId === 'help_bug_report') {
-      await interaction.reply({ content: 'Bug report feature coming soon! / Функция репорта багов скоро появится!', ephemeral: true });
-    }
+  } catch (error) {
+    await reportInteractionError(interaction, error);
   }
 }
