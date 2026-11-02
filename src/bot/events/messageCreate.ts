@@ -127,8 +127,6 @@ export async function execute(message: Message) {
 
     const lastXpAt = xpCooldowns.get(memberKey) ?? 0;
     if (now - lastXpAt < XP_COOLDOWN_MS) return;
-    xpCooldowns.set(memberKey, now);
-
     const userRef = guildRef.collection('users').doc(userId);
     const levelUp = await db.runTransaction(async transaction => {
       const userDoc = await transaction.get(userRef);
@@ -147,6 +145,8 @@ export async function execute(message: Message) {
 
       return newLevel > oldLevel ? newLevel : null;
     });
+
+    xpCooldowns.set(memberKey, now);
 
     if (levelUp !== null) {
       await sendNotice(guildData.language === 'en'
