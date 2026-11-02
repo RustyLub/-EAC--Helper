@@ -1,36 +1,44 @@
-# EAC Helper — Discord Bot Moderation
+# EAC Helper — Discord Bot for Windows
 
-EAC Helper — Discord-бот и веб-панель управления модерацией Discord-серверов.
+Запускаемая на Windows версия Discord-бота. Для работы бота не нужны веб-панель, GitHub Pages или Render.
 
-## Запуск локально
+## Один раз подготовить компьютер
 
-Требуется Node.js 22 или новее.
+Установи:
+- Node.js 22 LTS или новее: https://nodejs.org/
+- Git for Windows: https://git-scm.com/download/win
 
-```bash
-npm ci
-cp .env.example .env
-# Заполни .env значениями из Discord Developer Portal и Firebase
-npm run dev
+Открой командную строку в папке, где хочешь хранить бота, и выполни один раз:
+
+```bat
+git clone https://github.com/RustyLub/-EAC--Helper.git
 ```
 
-Панель будет доступна по адресу `http://localhost:3000`.
+Открой созданную папку `-EAC--Helper` и запусти `Setup.bat`.
 
-## Развёртывание
+## Настройка
 
-Это **полноценное Node.js-приложение**, а не статический сайт. GitHub Pages не поддерживает Express API, Discord OAuth callback и постоянно работающего Discord-бота. Поэтому публикация только через GitHub Pages приводит к неработающей панели.
+В файле `.env` укажи:
+- `DISCORD_TOKEN` — токен бота из Discord Developer Portal → Bot.
+- `CLIENT_ID` — Application ID из General Information.
+- `GUILD_ID` — необязательно, ID тестового сервера для быстрой регистрации slash-команд.
+- Firebase — нужен текущим функциям XP, уровней, языка, автомодерации, приветствий и прощаний. Создай Firebase project, включи Firestore и укажи путь к JSON-ключу сервисного аккаунта в `GOOGLE_APPLICATION_CREDENTIALS`.
 
-В репозитории есть `render.yaml` для Render Blueprint:
-1. Открой Render и создай новый Blueprint из репозитория `RustyLub/-EAC--Helper`.
-2. После создания сервиса добавь секреты окружения: `APP_URL`, `CLIENT_ID`, `CLIENT_SECRET`, `DISCORD_TOKEN`, `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT`.
-3. В Discord Developer Portal укажи OAuth2 Redirect URL: `https://<твой-домен-сервиса>/auth/callback`.
-4. Включи нужные Gateway Intents у Discord-бота: Server Members Intent и Message Content Intent.
-5. После успешного деплоя открой домен Render. Проверка сервера: `/api/health`.
+В Discord Developer Portal включи **Server Members Intent** и **Message Content Intent**. Пригласи бота на сервер со scope `bot` и `applications.commands`, выдай необходимые права.
 
-Firebase service account передаётся в `FIREBASE_SERVICE_ACCOUNT` как полный JSON одной строкой. Не публикуй этот JSON в GitHub.
+## Запуск
 
-## Проверки
+Каждый раз просто запускай `Start.bat`. Окно консоли должно оставаться открытым, пока бот работает.
 
-```bash
-npm run build
-npm run lint
-```
+## Обновление без повторного скачивания
+
+Когда появится новая версия, запусти `Update.bat`. Он выполнит `git pull` и обновит зависимости. Полный архив повторно скачивать не нужно; твой `.env` остаётся на месте.
+
+## Ручные команды
+
+- `npm run bot` — запуск.
+- `npm run lint` — проверка TypeScript.
+
+## Безопасность
+
+Не отправляй токен Discord и JSON-ключ Firebase другим людям. Не загружай их в GitHub. Файл `.env` уже исключён из Git.
