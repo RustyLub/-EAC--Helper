@@ -3,7 +3,6 @@ import {
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from 'discord.js';
-import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '../../firebase';
 import { getGuildLanguage } from '../../utils/lang';
 
