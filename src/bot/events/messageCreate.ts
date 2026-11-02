@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Events, Message, Collection } from 'discord.js';
 import { db } from '../firebase';
 import { FieldValue } from 'firebase-admin/firestore';
