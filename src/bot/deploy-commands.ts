@@ -21,12 +21,17 @@ export async function deployCommands() {
     throw new Error('[Bot] CLIENT_ID is missing or invalid. Set the Application ID from Discord Developer Portal → General Information in .env.');
   }
 
+  const guildId = process.env.GUILD_ID?.trim();
+  if (guildId && !/^\\d{17,20}$/.test(guildId)) {
+    throw new Error('[Bot] GUILD_ID is invalid. Use the numeric ID of your Discord test server or leave it empty.');
+  }
+
   const rest = new REST({ version: '10' }).setToken(token);
   try {
     console.log(`[Bot] Registering ${commands.length} application commands.`);
     if (process.env.GUILD_ID && /^\d{17,20}$/.test(process.env.GUILD_ID)) {
       const data = await rest.put(
-        Routes.applicationGuildCommands(clientId, process.env.GUILD_ID),
+        Routes.applicationGuildCommands(clientId, guildId),
         { body: commands },
       ) as unknown[];
       console.log(`[Bot] Registered ${data.length} commands for the configured guild.`);
