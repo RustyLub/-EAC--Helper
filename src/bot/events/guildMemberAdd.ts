@@ -16,8 +16,9 @@ export async function execute(member: GuildMember) {
     const data = guildDoc.data();
     if (!data?.welcome?.enabled || !data?.welcome?.channelId) return;
 
-    const channel = member.guild.channels.cache.get(data.welcome.channelId) as TextChannel;
-    if (!channel || !channel.isTextBased()) return;
+    const fetchedChannel = await member.guild.channels.fetch(data.welcome.channelId).catch(() => null);
+    if (!fetchedChannel?.isTextBased() || !('send' in fetchedChannel)) return;
+    const channel = fetchedChannel as TextChannel;
 
     let message = data.welcome.message || "Привет, {user}! Добро пожаловать на сервер **{server}**. Ты наш {membercount} участник!";
     
