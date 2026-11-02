@@ -18,8 +18,7 @@ export async function deployCommands() {
     return;
   }
   if (!clientId || clientId.startsWith('YOUR_') || !/^\d{17,20}$/.test(clientId)) {
-    console.warn('[Bot] CLIENT_ID is missing; skipping slash-command registration.');
-    return;
+    throw new Error('[Bot] CLIENT_ID is missing or invalid. Set the Application ID from Discord Developer Portal → General Information in .env.');
   }
 
   const rest = new REST({ version: '10' }).setToken(token);
