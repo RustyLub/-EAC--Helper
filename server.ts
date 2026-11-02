@@ -38,6 +38,12 @@ async function startServer() {
   app.use(cookieParser());
   app.use(express.json());
 
+  // Keep both health URLs available for Render and external uptime checks.
+  app.get(["/api/health", "/health"], (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.json({ status: "ok" });
+  });
+
   const getAppOrigin = () => {
     const configured = process.env.APP_URL;
     if (!configured) throw new Error("APP_URL is not configured");
@@ -60,10 +66,6 @@ async function startServer() {
     const permissions = BigInt(guild.permissions);
     return (permissions & 0x8n) === 0x8n || (permissions & 0x20n) === 0x20n;
   };
-
-  app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok" });
-  });
 
   // Discord OAuth2: use a server-configured redirect URI and one-time state.
   app.get("/api/auth/url", (_req, res) => {
@@ -230,8 +232,6 @@ async function startServer() {
   app.get("/api/guilds/:guildId/channels", guildResourceHandler("channels"));
   app.get("/api/guilds/:guildId/roles", guildResourceHandler("roles"));
 
-  // Persistent per-server module configuration. Only explicitly supported
-  // module IDs can be changed by a user with Manage Guild or Administrator.
   const supportedModules = new Set([
     "moderation", "automod", "action-log", "welcome", "tickets",
     "levels", "custom-commands", "announcements",
@@ -303,9 +303,9 @@ async function startServer() {
     }
   });
 
-  startBot().catch(console.error);
+  startBot().catch((error) => console.error("Discord bot failed to start:", error));
 
-  if (process.env.NODE_ENV !== "production") {
+  if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -320,8 +320,11 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on port ${PORT} (production: ${isProduction})`);
   });
 }
 
-startServer();
+startServer().catch((error) => {
+  console.error("Fatal server startup error:", error);
+  process.exit(1);
+});
