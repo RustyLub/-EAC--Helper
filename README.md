@@ -20,7 +20,7 @@
 - `FIREBASE_PROJECT_ID` — ID проекта Firebase.
 - `GOOGLE_APPLICATION_CREDENTIALS` — путь к JSON-ключу Firebase service account.
 
-Создай проект Firebase, включи Cloud Firestore и выдай сервисному аккаунту права на Firestore. База использует коллекцию `guilds/{guildId}`; пользовательские XP и предупреждения хранятся в `guilds/{guildId}/users/{userId}`.
+Создай проект Firebase, включи Cloud Firestore и выдай сервисному аккаунту права на Firestore. Для локального запуска укажи путь к JSON-ключу в `GOOGLE_APPLICATION_CREDENTIALS` (например, `C:\\EAC-Helper\\firebase-service-account.json`) либо вставь полный JSON одной строкой в `FIREBASE_SERVICE_ACCOUNT`. Без `FIREBASE_PROJECT_ID` и одного из вариантов учётных данных бот остановится при старте с понятной ошибкой. JSON-ключ не добавляй в Git. База использует коллекцию `guilds/{guildId}`; пользовательские XP и предупреждения хранятся в `guilds/{guildId}/users/{userId}`.
 
 ## Discord Developer Portal
 
@@ -61,7 +61,7 @@ XP начисляется не чаще одного раза в минуту н
 - Каждый раз запускай `Start.bat`.
 - Для обновления без повторного скачивания ZIP запусти `Update.bat`.
 - Проверка типов: `npm run lint`.
-- Проверка сборки бота: `npm run build`.
+- `npm run build` выполняет проверку TypeScript с `--noEmit`: JavaScript-файлы не генерируются. Отдельной папки `dist`/`build` и пути к собранному JS-файлу у бота нет; фактическая точка запуска — `src/bot/main.ts`.
 
 Окно консоли должно оставаться открытым, пока бот работает.
 
