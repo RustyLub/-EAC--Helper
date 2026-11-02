@@ -20,7 +20,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const target = interaction.options.getUser('target');
   const reason = interaction.options.getString('reason') ?? 'No reason provided';
-  const member = interaction.guild?.members.cache.get(target!.id);
+  const member = target && interaction.guild ? await interaction.guild.members.fetch(target.id).catch(() => null) : null;
 
   if (!member) {
     await interaction.reply({ content: t.userNotFound, ephemeral: true });
