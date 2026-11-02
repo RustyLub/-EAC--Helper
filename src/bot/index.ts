@@ -28,9 +28,9 @@ export async function startBot() {
   for (const event of events) {
     const handler = event.execute as EventHandler;
     if (event.once) {
-      client.once(event.name as any, (...args: any[]) => { void handler(...args); });
+      client.once(event.name as any, (argument: unknown) => { void handler(argument); });
     } else {
-      client.on(event.name as any, (...args: any[]) => { void handler(...args); });
+      client.on(event.name as any, (argument: unknown) => { void handler(argument); });
     }
   }
 
