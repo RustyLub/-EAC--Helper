@@ -17,7 +17,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const duration = interaction.options.getInteger('duration', true);
   const reason = safeReason(interaction.options.getString('reason'));
   const result = await resolveModerationTarget(interaction, targetUser.id, PermissionFlagsBits.ModerateMembers);
-  if (!result.ok) {
+  if (result.ok === false) {
     await interaction.reply({ content: result.message, ephemeral: true });
     return;
   }
