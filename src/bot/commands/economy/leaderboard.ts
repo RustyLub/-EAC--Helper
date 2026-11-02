@@ -33,8 +33,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     let desc = '';
     snapshot.docs.forEach((doc, index) => {
       const data = doc.data();
-      const level = Math.floor(Math.sqrt(data.xp / 100));
-      desc += `**${index + 1}.** ${data.username || `<@${doc.id}>`} - Lvl ${level} (${data.xp} XP)\n`;
+      const xp = typeof data.xp === 'number' && Number.isFinite(data.xp) ? Math.max(0, data.xp) : 0;
+      const level = Math.floor(Math.sqrt(xp / 100));
+      desc += `**${index + 1}.** ${data.username || `<@${doc.id}>`} - Lvl ${level} (${xp} XP)\n`;
     });
 
     embed.setDescription(desc);
