@@ -1,4 +1,4 @@
-import { Events, Message } from 'discord.js';
+import { Events, Message, PermissionFlagsBits } from 'discord.js';
 import { db } from '../firebase';
 import { FieldValue } from 'firebase-admin/firestore';
 
@@ -10,11 +10,12 @@ const XP_MULTIPLIER = 100;
 const XP_COOLDOWN_MS = 60_000;
 const SPAM_WINDOW_MS = 5_000;
 const SPAM_LIMIT = 5;
+const MAP_LIMIT = 20_000;
 const spamTracker = new Map<string, number[]>();
 const xpCooldowns = new Map<string, number>();
 
 function hasModerationBypass(message: Message): boolean {
-  return Boolean(message.member?.permissions.has('ManageMessages'));
+  return Boolean(message.member?.permissions.has(PermissionFlagsBits.ManageMessages));
 }
 
 function isMostlyUppercase(content: string): boolean {
@@ -22,6 +23,28 @@ function isMostlyUppercase(content: string): boolean {
   if (letters.length < 10) return false;
   const uppercase = content.match(/[A-ZА-ЯЁ]/g)?.length ?? 0;
   return uppercase / letters.length > 0.7;
+}
+
+function pruneMemory(now: number): void {
+  for (const [key, timestamps] of spamTracker) {
+    const recent = timestamps.filter(timestamp => now - timestamp < SPAM_WINDOW_MS);
+    if (recent.length) spamTracker.set(key, recent);
+    else spamTracker.delete(key);
+  }
+  for (const [key, timestamp] of xpCooldowns) {
+    if (now - timestamp > XP_COOLDOWN_MS * 2) xpCooldowns.delete(key);
+  }
+  // Prevent unbounded memory use without clearing active users' protection state.
+  while (spamTracker.size > MAP_LIMIT) {
+    const oldest = spamTracker.keys().next().value;
+    if (oldest === undefined) break;
+    spamTracker.delete(oldest);
+  }
+  while (xpCooldowns.size > MAP_LIMIT) {
+    const oldest = xpCooldowns.keys().next().value;
+    if (oldest === undefined) break;
+    xpCooldowns.delete(oldest);
+  }
 }
 
 export async function execute(message: Message) {
@@ -32,10 +55,12 @@ export async function execute(message: Message) {
   const content = message.content ?? '';
   const memberKey = `${guildId}:${userId}`;
   const bypass = hasModerationBypass(message);
+  const now = Date.now();
+  pruneMemory(now);
 
   const sendNotice = async (text: string) => {
     if (message.channel.isSendable()) {
-      await message.channel.send({ content: text }).catch((error) => {
+      await message.channel.send({ content: text, allowedMentions: { users: [userId] } }).catch(error => {
         console.error('[Automod] Failed to send notice:', error);
       });
     }
@@ -45,14 +70,15 @@ export async function execute(message: Message) {
     const guildRef = db.collection('guilds').doc(guildId);
     const guildDoc = await guildRef.get();
     const guildData = guildDoc.exists ? guildDoc.data() ?? {} : {};
+    // Automod is opt-in: an unconfigured server must not have messages deleted unexpectedly.
     const automod = guildData.automod ?? {
-      antiSpam: true,
-      antiInvite: true,
-      antiCaps: true,
+      antiSpam: false,
+      antiInvite: false,
+      antiCaps: false,
       badWords: [],
     };
 
-    if (!bypass && automod.antiInvite && /(?:discord\.gg\/|discord(?:app)?\.com\/invite\/)[\w-]+/i.test(content)) {
+    if (!bypass && automod.antiInvite === true && /(?:discord\.gg\/|discord(?:app)?\.com\/invite\/)[\w-]+/i.test(content)) {
       await message.delete().catch(() => null);
       await sendNotice(`${message.author}, отправка приглашений запрещена.`);
       return;
@@ -62,33 +88,30 @@ export async function execute(message: Message) {
       ? automod.badWords.filter((word: unknown): word is string => typeof word === 'string' && word.trim().length > 0)
       : [];
     const normalizedContent = content.toLocaleLowerCase();
-    if (!bypass && badWords.some((word) => normalizedContent.includes(word.toLocaleLowerCase().trim()))) {
+    if (!bypass && badWords.some(word => normalizedContent.includes(word.toLocaleLowerCase().trim()))) {
       await message.delete().catch(() => null);
       await sendNotice(`${message.author}, сообщение содержит запрещённое слово.`);
       return;
     }
 
-    if (!bypass && automod.antiCaps && isMostlyUppercase(content)) {
+    if (!bypass && automod.antiCaps === true && isMostlyUppercase(content)) {
       await message.delete().catch(() => null);
       await sendNotice(`${message.author}, пожалуйста, не используйте чрезмерное количество заглавных букв.`);
       return;
     }
 
-    if (!bypass && automod.antiSpam) {
-      const now = Date.now();
-      const recent = (spamTracker.get(memberKey) ?? []).filter((timestamp) => now - timestamp < SPAM_WINDOW_MS);
+    if (!bypass && automod.antiSpam === true) {
+      const recent = (spamTracker.get(memberKey) ?? []).filter(timestamp => now - timestamp < SPAM_WINDOW_MS);
       recent.push(now);
       spamTracker.set(memberKey, recent);
 
       if (recent.length >= SPAM_LIMIT) {
         spamTracker.delete(memberKey);
         await message.delete().catch(() => null);
-        const timeoutResult = await message.member?.timeout(60_000, 'EAC Helper: anti-spam').then(() => true).catch(() => false);
-        if (timeoutResult) {
-          await sendNotice(`${message.author} получил тайм-аут на 1 минуту за спам.`);
-        } else {
-          await sendNotice(`${message.author}, остановите спам. Не удалось автоматически выдать тайм-аут — проверьте права бота.`);
-        }
+        const timedOut = await message.member?.timeout(60_000, 'EAC Helper: anti-spam').then(() => true).catch(() => false);
+        await sendNotice(timedOut
+          ? `${message.author} получил тайм-аут на 1 минуту за спам.`
+          : `${message.author}, остановите спам. Не удалось выдать тайм-аут — проверьте права бота.`);
         return;
       }
     }
@@ -102,41 +125,33 @@ export async function execute(message: Message) {
       }
     }
 
-    // Award XP at most once per minute per member to prevent message flooding.
-    const now = Date.now();
     const lastXpAt = xpCooldowns.get(memberKey) ?? 0;
     if (now - lastXpAt < XP_COOLDOWN_MS) return;
     xpCooldowns.set(memberKey, now);
 
-    // Bound in-memory maps so a large server cannot grow them indefinitely.
-    if (xpCooldowns.size > 20_000) {
-      for (const [key, timestamp] of xpCooldowns) {
-        if (now - timestamp > XP_COOLDOWN_MS * 2) xpCooldowns.delete(key);
-      }
-    }
-    if (spamTracker.size > 20_000) spamTracker.clear();
-
     const userRef = guildRef.collection('users').doc(userId);
-    const userDoc = await userRef.get();
-    const currentXp = userDoc.exists && typeof userDoc.data()?.xp === 'number'
-      ? userDoc.data()!.xp
-      : 0;
-    const oldLevel = Math.floor(Math.sqrt(Math.max(0, currentXp) / XP_MULTIPLIER));
-    const newXp = Math.max(0, currentXp) + XP_PER_MESSAGE;
-    const newLevel = Math.floor(Math.sqrt(newXp / XP_MULTIPLIER));
+    const levelUp = await db.runTransaction(async transaction => {
+      const userDoc = await transaction.get(userRef);
+      const storedXp = userDoc.exists ? userDoc.data()?.xp : 0;
+      const currentXp = typeof storedXp === 'number' && Number.isFinite(storedXp) ? Math.max(0, storedXp) : 0;
+      const oldLevel = Math.floor(Math.sqrt(currentXp / XP_MULTIPLIER));
+      const newXp = currentXp + XP_PER_MESSAGE;
+      const newLevel = Math.floor(Math.sqrt(newXp / XP_MULTIPLIER));
 
-    await userRef.set({
-      username: message.author.username,
-      xp: FieldValue.increment(XP_PER_MESSAGE),
-      updatedAt: FieldValue.serverTimestamp(),
-      ...(userDoc.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),
-    }, { merge: true });
+      transaction.set(userRef, {
+        username: message.author.username,
+        xp: FieldValue.increment(XP_PER_MESSAGE),
+        updatedAt: FieldValue.serverTimestamp(),
+        ...(userDoc.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),
+      }, { merge: true });
 
-    if (newLevel > oldLevel) {
-      const language = guildData.language === 'en' ? 'en' : 'ru';
-      await sendNotice(language === 'en'
-        ? `Congratulations ${message.author}! You've reached level **${newLevel}**!`
-        : `Поздравляем, ${message.author}! Вы достигли **${newLevel}** уровня!`);
+      return newLevel > oldLevel ? newLevel : null;
+    });
+
+    if (levelUp !== null) {
+      await sendNotice(guildData.language === 'en'
+        ? `Congratulations ${message.author}! You've reached level **${levelUp}**!`
+        : `Поздравляем, ${message.author}! Вы достигли **${levelUp}** уровня!`);
     }
   } catch (error) {
     console.error('[Bot] Ошибка в обработчике messageCreate:', error);
