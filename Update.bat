@@ -8,6 +8,24 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+where node >nul 2>nul
+if errorlevel 1 (
+  echo Node.js не найден. Установи Node.js 22 LTS или новее: https://nodejs.org/
+  pause
+  exit /b 1
+)
+node -e "if (Number(process.versions.node.split('.')[0]) < 22) process.exit(1)"
+if errorlevel 1 (
+  echo Требуется Node.js 22 или новее. Обнови Node.js и повтори запуск.
+  pause
+  exit /b 1
+)
+where npm >nul 2>nul
+if errorlevel 1 (
+  echo npm не найден. Переустанови Node.js с npm.
+  pause
+  exit /b 1
+)
 echo Получаю обновления...
 git pull --ff-only
 if errorlevel 1 (
