@@ -34,7 +34,7 @@ export async function execute(member: GuildMember) {
       .setThumbnail(member.user.displayAvatarURL())
       .setTimestamp();
 
-    await channel.send({ embeds: [embed] });
+    await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
 
   } catch (error) {
     console.error('Ошибка в guildMemberAdd:', error);
