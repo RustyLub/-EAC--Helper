@@ -28,6 +28,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const amount = interaction.options.getInteger('amount', true);
   const channel = interaction.channel;
 
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
+    await interaction.reply({ content: t.noPermission, ephemeral: true });
+    return;
+  }
+
   if (!channel || channel.type !== ChannelType.GuildText) {
     await interaction.reply({ content: t.newsError, ephemeral: true });
     return;
