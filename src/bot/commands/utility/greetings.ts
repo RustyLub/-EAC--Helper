@@ -44,7 +44,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const channel = interaction.options.getChannel('channel');
   const message = interaction.options.getString('message')?.trim();
 
-  if (channel && !channel.isTextBased()) {
+  if (channel && channel.type !== ChannelType.GuildText && channel.type !== ChannelType.GuildAnnouncement) {
     await interaction.reply({ content: english ? 'Choose a text channel.' : 'Выберите текстовый канал.', ephemeral: true });
     return;
   }
