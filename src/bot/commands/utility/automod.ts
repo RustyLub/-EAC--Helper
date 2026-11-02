@@ -59,7 +59,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         `Anti-invite: ${current.antiInvite ? 'ON' : 'OFF'}`,
         `Anti-caps: ${current.antiCaps ? 'ON' : 'OFF'}`,
         `Bad words: ${current.badWords.length}`,
-      ].join('\\n');
+      ].join('\n');
       await interaction.reply({ content: status, ephemeral: true });
       return;
     }
@@ -86,10 +86,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       `Anti-invite: ${next.antiInvite ? 'ON' : 'OFF'}`,
       `Anti-caps: ${next.antiCaps ? 'ON' : 'OFF'}`,
       `Bad words: ${next.badWords.length}`,
-    ].join('\\n');
+    ].join('\n');
 
     await interaction.reply({
-      content: (english ? 'Automod settings saved.\\n' : 'Настройки автомодерации сохранены.\\n') + result,
+      content: (english ? 'Automod settings saved.\n' : 'Настройки автомодерации сохранены.\n') + result,
       ephemeral: true,
     });
   } catch (error) {
