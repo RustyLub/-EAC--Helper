@@ -11,6 +11,12 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+node -e "if (Number(process.versions.node.split('.')[0]) < 22) process.exit(1)"
+if errorlevel 1 (
+  echo Требуется Node.js 22 или новее. Обнови Node.js и повтори запуск.
+  pause
+  exit /b 1
+)
 where npm >nul 2>nul
 if errorlevel 1 (
   echo npm не найден. Переустанови Node.js с npm.
@@ -27,13 +33,18 @@ if errorlevel 1 (
 )
 if not exist ".env" (
   copy ".env.example" ".env" >nul
+  if errorlevel 1 (
+    echo Не удалось создать .env из .env.example.
+    pause
+    exit /b 1
+  )
   echo Создан файл .env из шаблона.
 ) else (
   echo Файл .env уже существует, он не изменён.
 )
 echo.
 echo Установка завершена.
-echo Сейчас откроется .env. Заполни DISCORD_TOKEN, CLIENT_ID и настройки Firebase.
-start notepad.exe ".env"
+echo Сейчас откроется .env. Заполни Discord и Firebase настройки.
+start "" notepad.exe ".env"
 echo После сохранения запусти Start.bat.
 pause
