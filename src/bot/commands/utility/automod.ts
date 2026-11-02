@@ -22,7 +22,7 @@ export const data = new SlashCommandBuilder()
   .addBooleanOption(option => option.setName('anti_spam').setDescription('Enable spam protection'))
   .addBooleanOption(option => option.setName('anti_invite').setDescription('Block Discord invite links'))
   .addBooleanOption(option => option.setName('anti_caps').setDescription('Delete excessive uppercase messages'))
-  .addStringOption(option => option.setName('bad_words').setDescription('Comma-separated blocked words (empty value clears list)').setMaxLength(1000))
+  .addStringOption(option => option.setName('bad_words').setDescription('Comma-separated blocked words (use CLEAR to remove all)').setMaxLength(1000))
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
 export async function execute(interaction: ChatInputCommandInteraction) {
@@ -70,7 +70,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       antiCaps: caps ?? current.antiCaps,
       badWords: words === null
         ? current.badWords
-        : words.split(',').map(word => word.trim().toLocaleLowerCase()).filter(Boolean).slice(0, 100),
+        : words.trim().toLocaleLowerCase() === 'clear'
+          ? []
+          : words.split(',').map(word => word.trim().toLocaleLowerCase()).filter(Boolean).slice(0, 100),
     };
 
     await guildRef.set({
