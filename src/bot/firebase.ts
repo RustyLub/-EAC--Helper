@@ -1,12 +1,30 @@
-import { initializeApp, getApps } from 'firebase-admin/app';
+import { cert, initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import 'dotenv/config';
 
-// Initialize Firebase Admin
+// Render and other hosted Node services receive the service account as JSON.
+// Local development can continue using the standard Google credentials chain.
 if (getApps().length === 0) {
-  initializeApp({
-    projectId: process.env.FIREBASE_PROJECT_ID || 'ai-studio-discordbot-22529366-86d9-4e0a-b3a7-91f2f41a1dff',
-  });
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+
+  if (serviceAccountJson) {
+    let serviceAccount: Record<string, unknown>;
+    try {
+      serviceAccount = JSON.parse(serviceAccountJson) as Record<string, unknown>;
+    } catch {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT must contain valid service-account JSON.');
+    }
+
+    initializeApp({
+      credential: cert(serviceAccount as Parameters<typeof cert>[0]),
+      ...(projectId ? { projectId } : {}),
+    });
+  } else {
+    initializeApp({
+      ...(projectId ? { projectId } : {}),
+    });
+  }
 }
 
 export const db = getFirestore();
