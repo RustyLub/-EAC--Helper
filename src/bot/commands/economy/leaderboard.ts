@@ -7,11 +7,15 @@ export const data = new SlashCommandBuilder()
   .setDescription('View the server XP leaderboard');
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  const langId = await getGuildLanguage(interaction.guildId!);
+  if (!interaction.inGuild() || !interaction.guildId) {
+    await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
+    return;
+  }
+  const langId = await getGuildLanguage(interaction.guildId);
   const t = translations[langId];
 
   try {
-    const snapshot = await db.collection('guilds').doc(interaction.guildId!)
+    const snapshot = await db.collection('guilds').doc(interaction.guildId)
                              .collection('users')
                              .orderBy('xp', 'desc')
                              .limit(10)
