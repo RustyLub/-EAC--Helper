@@ -17,6 +17,12 @@ export async function execute(message: Message) {
 
   const guildId = message.guild.id;
   const content = message.content;
+  const sendChannelMessage = async (text: string) => {
+    const channel = message.channel;
+    if ("send" in channel && typeof channel.send === "function") {
+      await channel.send(text);
+    }
+  };
 
   try {
     // Fetch guild config for automod & custom commands
@@ -30,7 +36,7 @@ export async function execute(message: Message) {
       const inviteRegex = /(discord\.gg\/|discordapp\.com\/invite\/)/i;
       if (inviteRegex.test(content) && !message.member?.permissions.has('ManageMessages')) {
         await message.delete().catch(() => {});
-        await message.channel.send(`${message.author}, отправка инвайтов запрещена! / Sending invites is forbidden!`).then(m => setTimeout(() => m.delete().catch(() => {}), 5000));
+        await sendChannelMessage(`${message.author}, отправка инвайтов запрещена! / Sending invites is forbidden!`);
         return;
       }
     }
@@ -41,7 +47,7 @@ export async function execute(message: Message) {
       const containsBadWord = automod.badWords.some((word: string) => lowerContent.includes(word.toLowerCase()));
       if (containsBadWord && !message.member?.permissions.has('ManageMessages')) {
         await message.delete().catch(() => {});
-        await message.channel.send(`${message.author}, использование запрещенных слов запрещено! / Using forbidden words is not allowed!`).then(m => setTimeout(() => m.delete().catch(() => {}), 5000));
+        await sendChannelMessage(`${message.author}, использование запрещенных слов запрещено! / Using forbidden words is not allowed!`);
         return;
       }
     }
@@ -51,7 +57,7 @@ export async function execute(message: Message) {
       const capsCount = content.replace(/[^A-ZА-Я]/g, '').length;
       if (capsCount / content.length > 0.7) {
         await message.delete().catch(() => {});
-        await message.channel.send(`${message.author}, пожалуйста, не используйте так много заглавных букв! / Please don't use excessive caps!`).then(m => setTimeout(() => m.delete().catch(() => {}), 5000));
+        await sendChannelMessage(`${message.author}, пожалуйста, не используйте так много заглавных букв! / Please don't use excessive caps!`);
         return;
       }
     }
@@ -70,7 +76,7 @@ export async function execute(message: Message) {
         // Basic timeout implementation
         try {
           await message.member?.timeout(60 * 1000, 'Anti-Spam').catch(() => {});
-          await message.channel.send(`${message.author} был замьючен на 1 минуту за спам. / has been muted for 1 minute for spamming.`);
+          await sendChannelMessage(`${message.author} был замьючен на 1 минуту за спам. / has been muted for 1 minute for spamming.`);
         } catch(e) {}
         return;
       }
@@ -80,7 +86,7 @@ export async function execute(message: Message) {
     if (content.startsWith('!')) {
       const commandName = content.slice(1).split(' ')[0].toLowerCase();
       if (customCommands[commandName]) {
-        await message.channel.send(customCommands[commandName]);
+        await sendChannelMessage(customCommands[commandName]);
         return;
       }
     }
@@ -121,9 +127,7 @@ export async function execute(message: Message) {
         ? `Congratulations ${message.author}! You've reached level **${newLevel}**!`
         : `Поздравляем, ${message.author}! Вы достигли **${newLevel}** уровня!`;
         
-      if (message.channel.isTextBased() && 'send' in message.channel) {
-        await message.channel.send(levelUpMsg);
-      }
+      await sendChannelMessage(levelUpMsg);
     }
 
   } catch (error) {
