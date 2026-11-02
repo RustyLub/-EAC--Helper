@@ -7,9 +7,16 @@ import { commands, events } from './registry';
 type EventHandler = (...args: any[]) => unknown;
 
 export async function startBot() {
+  const token = process.env.DISCORD_TOKEN;
+  if (!token || token === 'YOUR_DISCORD_BOT_TOKEN') {
+    console.warn('[Bot] DISCORD_TOKEN is not configured; the web API will start without the Discord bot.');
+    return;
+  }
+
   const client = new Client({
     intents: [
       GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
     ],
@@ -21,27 +28,24 @@ export async function startBot() {
     if ('data' in command && 'execute' in command) {
       client.commands.set(command.data.name, command as unknown as Command);
     } else {
-      console.log('[WARNING] Команда не содержит обязательных свойств "data" или "execute".');
+      console.warn('[Bot] A command is missing required data or execute properties.');
     }
   }
 
   for (const event of events) {
     const handler = event.execute as EventHandler;
     if (event.once) {
-      client.once(event.name as any, (argument: unknown) => { void handler(argument); });
+      client.once(event.name as any, (...args: unknown[]) => { void handler(...args); });
     } else {
-      client.on(event.name as any, (argument: unknown) => { void handler(argument); });
+      client.on(event.name as any, (...args: unknown[]) => { void handler(...args); });
     }
   }
 
   try {
-    if (process.env.DISCORD_TOKEN && process.env.DISCORD_TOKEN !== 'YOUR_DISCORD_BOT_TOKEN') {
-      await deployCommands();
-      await client.login(process.env.DISCORD_TOKEN);
-    } else {
-      console.log('Пожалуйста, укажите настоящий DISCORD_TOKEN в файле .env');
-    }
+    await deployCommands();
+    await client.login(token);
   } catch (error) {
-    console.error('Ошибка входа Discord-бота:', error);
+    console.error('[Bot] Discord startup failed:', error);
+    client.destroy();
   }
 }
