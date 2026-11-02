@@ -5,6 +5,9 @@ import {
   ShieldCheck, SlidersHorizontal, Ticket, Users, X,
 } from "lucide-react";
 
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "https://eac-helper.onrender.com").replace(/\/$/, "");
+const apiFetch = (path: string, init: RequestInit = {}) => fetch(`${API_BASE}${path}`, { ...init, credentials: "include" });
+
 type DiscordUser = {
   id: string;
   username: string;
@@ -56,7 +59,7 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
-      const userResponse = await fetch("/api/user");
+      const userResponse = await apiFetch("/api/user");
       if (!userResponse.ok) {
         setUser(null);
         setGuilds([]);
@@ -65,7 +68,7 @@ export default function App() {
       }
       const userData = await userResponse.json() as DiscordUser;
       setUser(userData);
-      const guildResponse = await fetch("/api/guilds");
+      const guildResponse = await apiFetch("/api/guilds");
       if (!guildResponse.ok) throw new Error("Не удалось загрузить список серверов Discord.");
       const guildData = await guildResponse.json() as Guild[];
       setGuilds(guildData);
@@ -79,7 +82,7 @@ export default function App() {
   useEffect(() => {
     void loadSession();
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || !event.source || event.source === window) return;
+      if (event.origin !== new URL(API_BASE).origin || !event.source || event.source === window) return;
       if (event.data?.type === "OAUTH_AUTH_SUCCESS") void loadSession();
     };
     window.addEventListener("message", onMessage);
@@ -87,15 +90,24 @@ export default function App() {
   }, [loadSession]);
 
   const login = async () => {
+    // Open synchronously from the click so the browser does not block the OAuth popup.
+    const popup = window.open("about:blank", "eac-discord-login", "width=560,height=720");
+    if (!popup) {
+      setError("Разреши всплывающие окна для этого сайта и повтори вход.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/auth/url");
-      if (!response.ok) throw new Error("Не удалось начать вход через Discord.");
+      const response = await apiFetch("/api/auth/url");
+      if (!response.ok) {
+        const details = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(details.error || "Не удалось начать вход через Discord. Проверь, запущен ли сервер авторизации.");
+      }
       const data = await response.json() as { url: string };
-      const popup = window.open(data.url, "eac-discord-login", "width=560,height=720");
-      if (!popup) throw new Error("Разреши всплывающие окна для этого сайта и повтори вход.");
+      popup.location.href = data.url;
     } catch (e) {
+      popup.close();
       setError(e instanceof Error ? e.message : "Ошибка авторизации.");
     } finally {
       setBusy(false);
@@ -103,7 +115,7 @@ export default function App() {
   };
 
   const logout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await apiFetch("/api/auth/logout", { method: "POST" });
     setUser(null);
     setGuilds([]);
     setSelectedGuild(null);
@@ -113,7 +125,7 @@ export default function App() {
   const loadGuildSettings = useCallback(async (guildId: string) => {
     setError("");
     try {
-      const response = await fetch(`/api/guilds/${encodeURIComponent(guildId)}/settings`);
+      const response = await apiFetch(`/api/guilds/${encodeURIComponent(guildId)}/settings`);
       if (!response.ok) throw new Error(response.status === 503
         ? "Хранилище настроек недоступно. Проверь Firebase Admin."
         : "Не удалось загрузить настройки сервера.");
@@ -131,7 +143,7 @@ export default function App() {
     setSavingModule(true);
     setError("");
     try {
-      const response = await fetch(`/api/guilds/${encodeURIComponent(selectedGuild.id)}/settings`, {
+      const response = await apiFetch(`/api/guilds/${encodeURIComponent(selectedGuild.id)}/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ modules: { [moduleId]: enabled } }),
