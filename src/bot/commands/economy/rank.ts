@@ -19,11 +19,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const t = translations[langId];
 
   const target = interaction.options.getUser('target') || interaction.user;
-  const userRef = db.collection('guilds').doc(interaction.guildId!).collection('users').doc(target.id);
+  const userRef = db.collection('guilds').doc(interaction.guildId).collection('users').doc(target.id);
   
   try {
     const doc = await userRef.get();
-    const xp = doc.exists ? (doc.data()?.xp || 0) : 0;
+    const storedXp: unknown = doc.exists ? doc.data()?.xp : 0;
+    const xp = typeof storedXp === 'number' && Number.isFinite(storedXp) ? Math.max(0, storedXp) : 0;
     const level = Math.floor(Math.sqrt(xp / 100));
 
     await interaction.reply({ content: t.rankInfo(target.tag, level, xp) });
