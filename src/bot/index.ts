@@ -40,11 +40,7 @@ export async function startBot() {
     }
   }
 
-  try {
-    await deployCommands();
-  } catch (error) {
-    console.error('[Bot] Slash-command registration failed; continuing startup:', error);
-  }
+  await deployCommands();
 
   try {
     await client.login(token);
