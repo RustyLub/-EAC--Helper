@@ -1,6 +1,14 @@
 import "dotenv/config";
 import { startBot } from "./index";
 
+process.on('unhandledRejection', (reason) => {
+  console.error('[EAC Helper] Необработанное отклонение Promise:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[EAC Helper] Необработанное исключение процесса. Требуется проверить состояние бота:', error);
+});
+
 async function main() {
   if (!process.env.DISCORD_TOKEN || process.env.DISCORD_TOKEN === "YOUR_DISCORD_BOT_TOKEN") {
     console.error("[EAC Helper] Не задан DISCORD_TOKEN. Заполни файл .env и запусти бота снова.");
