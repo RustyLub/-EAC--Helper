@@ -49,6 +49,7 @@ function getCategories(lang: 'ru' | 'en') {
       description: t.helpUtilityDesc,
       commands: [
         { name: 'language', desc: lang === 'ru' ? 'Установить язык сервера (ru/en).' : 'Set the server language (ru/en).' },
+        { name: 'automod', desc: lang === 'ru' ? 'Настроить автомодерацию.' : 'Configure automatic moderation.' },
         { name: 'help', desc: lang === 'ru' ? 'Показать интерактивное меню помощи.' : 'Shows the interactive help menu.' }
       ]
     }
