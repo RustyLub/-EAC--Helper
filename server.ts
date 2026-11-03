@@ -14,6 +14,14 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
   const isProduction = process.env.NODE_ENV === "production";
+  if (isProduction) {
+    const missing = ["DISCORD_TOKEN", "CLIENT_ID", "CLIENT_SECRET", "APP_URL"].filter((key) => !process.env[key]?.trim());
+    if (missing.length) throw new Error("Missing required production environment variables: " + missing.join(", "));
+    if (process.env.DISCORD_TOKEN === "YOUR_DISCORD_BOT_TOKEN" || !/^\d{17,20}$/.test(process.env.CLIENT_ID!)) {
+      throw new Error("DISCORD_TOKEN or CLIENT_ID is invalid. Check the Render environment settings.");
+    }
+    if (new URL(process.env.APP_URL!).protocol !== "https:") throw new Error("APP_URL must use HTTPS in production.");
+  }
   const frontendOrigin = new URL(process.env.APP_URL || `http://localhost:${PORT}`).origin;
   const cookieOptions = {
     httpOnly: true,
@@ -291,7 +299,10 @@ async function startServer() {
     res.json({ guildId: req.params.guildId, modules });
   });
 
-  startBot().catch((error) => console.error("Discord bot failed to start:", error));
+  startBot().catch((error) => {
+    console.error("Discord bot failed to start:", error);
+    if (isProduction) process.exit(1);
+  });
 
   if (!isProduction) {
     const vite = await createViteServer({
