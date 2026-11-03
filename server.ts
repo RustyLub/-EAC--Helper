@@ -14,14 +14,14 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
   const isProduction = process.env.NODE_ENV === "production";
-  const frontendOrigin = (process.env.FRONTEND_URL || "https://rustylub.github.io").replace(/\/$/, "");
+  const frontendOrigin = new URL(process.env.FRONTEND_URL || process.env.APP_URL || `http://localhost:${PORT}`).origin;
   const cookieOptions = {
     httpOnly: true,
     secure: isProduction,
-    sameSite: (isProduction ? "none" : "lax") as "none" | "lax",
+    sameSite: "lax" as const,
   };
 
-  // GitHub Pages and the Render API are on different origins.
+  // The frontend and API are served from the same origin; CORS is only enabled for an explicitly configured frontend origin.
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (origin === frontendOrigin || (!isProduction && origin === "http://localhost:5173")) {
