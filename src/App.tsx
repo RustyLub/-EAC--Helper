@@ -5,7 +5,7 @@ import {
   ShieldCheck, SlidersHorizontal, Ticket, Users, X,
 } from "lucide-react";
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "https://eac-helper.onrender.com").replace(/\/$/, "");
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
 async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   try {
@@ -20,7 +20,7 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
   } catch (error) {
     const details = error instanceof Error ? error.message : "Unknown network error";
     throw new Error(
-      `Не удалось связаться с API (${API_BASE}). Проверь, что Render-сервис запущен, адрес API указан верно, а CORS разрешает ${window.location.origin}. Подробности браузера: ${details}`,
+      `Не удалось связаться с API (${API_BASE || window.location.origin}). Проверь, что сервер запущен и доступен. Подробности браузера: ${details}`,
     );
   }
 }
@@ -102,7 +102,7 @@ export default function App() {
   useEffect(() => {
     void loadSession();
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== new URL(API_BASE).origin || !event.source || event.source === window) return;
+      if (event.origin !== new URL(API_BASE || window.location.origin, window.location.origin).origin || !event.source || event.source === window) return;
       if (event.data?.type === "OAUTH_AUTH_SUCCESS") void loadSession();
     };
     window.addEventListener("message", onMessage);
