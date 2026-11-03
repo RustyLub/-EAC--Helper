@@ -36,6 +36,15 @@ type Guild = {
   name: string;
   icon?: string | null;
 };
+type GuildSettings = {
+  modules: Record<string, boolean>;
+  automod: { antiSpam: boolean; antiInvite: boolean; antiCaps: boolean; badWords: string[]; spamLimit: number; spamWindowMs: number; timeoutMs: number };
+  levels: { xpPerMessage: number; cooldownSeconds: number; xpMultiplier: number; levelUpMessage: string };
+  welcome: { enabled: boolean; channelId?: string; message?: string };
+  leave: { enabled: boolean; channelId?: string; message?: string };
+  customCommands: Record<string, string>;
+  announcementChannelId: string;
+};
 type ModuleItem = {
   id: string;
   name: string;
@@ -69,6 +78,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [moduleEnabled, setModuleEnabled] = useState<Record<string, boolean>>({});
+  const [settings, setSettings] = useState<GuildSettings | null>(null);
   const [savingModule, setSavingModule] = useState(false);
 
   const loadSession = useCallback(async () => {
@@ -168,7 +178,8 @@ export default function App() {
           ? "Не удалось получить настройки панели."
           : `Не удалось загрузить настройки сервера (HTTP ${response.status}).`);
       }
-      const data = await response.json() as { modules?: Record<string, boolean> };
+      const data = await response.json() as GuildSettings;
+      setSettings(data);
       setModuleEnabled(data.modules || {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка загрузки настроек.");
@@ -205,6 +216,29 @@ export default function App() {
     } finally {
       setSavingModule(false);
     }
+  };
+
+  const saveSettings = async (patch: Partial<GuildSettings>) => {
+    if (!selectedGuild || !settings || savingModule) return;
+    const previous = settings;
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    setSavingModule(true);
+    setError("");
+    try {
+      const response = await apiFetch(`/api/guilds/${encodeURIComponent(selectedGuild.id)}/settings`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(data.error || `Не удалось сохранить настройки (HTTP ${response.status}).`);
+      }
+      const data = await response.json() as GuildSettings;
+      setSettings(data); setModuleEnabled(data.modules || {});
+    } catch (e) {
+      setSettings(previous);
+      setError(e instanceof Error ? e.message : "Ошибка сохранения настроек.");
+    } finally { setSavingModule(false); }
   };
 
   const filteredModules = useMemo(
@@ -292,7 +326,44 @@ export default function App() {
             <>
               <button className="back-link" onClick={() => setActiveModule(null)}><ArrowLeft size={16} /> Все модули</button>
               <div className="module-heading"><span className="module-icon"><activeModule.icon size={23} /></span><div><div className="page-kicker">{activeModule.category}</div><h1>{activeModule.name}</h1></div></div>
-              <section className="work-panel"><div className="work-panel-icon"><Activity size={24} /></div><h2>Настройки модуля</h2><p>{activeModule.description}</p><p>{activeModule.commands}</p><div className="module-setting-row"><div><b>{activeModule.name}</b><small>{moduleEnabled[activeModule.id] === false ? "Модуль выключен" : "Модуль включён"}</small></div><button className={`toggle ${moduleEnabled[activeModule.id] !== false ? "toggle-on" : ""}`} role="switch" aria-checked={moduleEnabled[activeModule.id] !== false} disabled={savingModule} onClick={() => void toggleModule(activeModule.id, moduleEnabled[activeModule.id] === false)}><span /></button></div>{savingModule && <small className="save-state">Сохранение…</small>}{error && <div className="notice notice-error">{error}</div>}<span className="status-pill">Настройка действует до перезапуска</span></section>
+              <section className="work-panel">
+                <div className="work-panel-icon"><Activity size={24} /></div><h2>Настройки модуля</h2><p>{activeModule.description}</p>
+                <div className="module-setting-row"><div><b>{activeModule.name}</b><small>{moduleEnabled[activeModule.id] === false ? "Модуль выключен" : "Модуль включён"}</small></div><button className={`toggle ${moduleEnabled[activeModule.id] !== false ? "toggle-on" : ""}`} role="switch" aria-checked={moduleEnabled[activeModule.id] !== false} disabled={savingModule} onClick={() => void toggleModule(activeModule.id, moduleEnabled[activeModule.id] === false)}><span /></button></div>
+                {!settings ? <p>Загружаем параметры…</p> : <>
+                  {activeModule.id === "automod" && <div className="settings-form">
+                    {([["antiSpam","Антиспам"],["antiInvite","Блокировать Discord-приглашения"],["antiCaps","Фильтр капса"]] as const).map(([key,label]) => <label className="module-setting-row" key={key}><span>{label}</span><input type="checkbox" checked={settings.automod[key]} onChange={e => void saveSettings({ automod: { ...settings.automod, [key]: e.target.checked } })} /></label>)}
+                    <label>Сообщений для срабатывания<input type="number" min="2" max="20" value={settings.automod.spamLimit} onChange={e => setSettings(s => s ? {...s,automod:{...s.automod,spamLimit:Number(e.target.value)}} : s)} onBlur={() => void saveSettings({automod:settings.automod})}/></label>
+                    <label>Окно антиспама (мс)<input type="number" min="1000" max="30000" value={settings.automod.spamWindowMs} onChange={e => setSettings(s => s ? {...s,automod:{...s.automod,spamWindowMs:Number(e.target.value)}} : s)} onBlur={() => void saveSettings({automod:settings.automod})}/></label>
+                    <label>Тайм-аут за спам (мс)<input type="number" min="0" max="2419200000" value={settings.automod.timeoutMs} onChange={e => setSettings(s => s ? {...s,automod:{...s.automod,timeoutMs:Number(e.target.value)}} : s)} onBlur={() => void saveSettings({automod:settings.automod})}/></label>
+                    <label>Запрещённые слова, через запятую<textarea value={settings.automod.badWords.join(", ")} onChange={e => setSettings(s => s ? {...s,automod:{...s.automod,badWords:e.target.value.split(",").map(x=>x.trim()).filter(Boolean)}} : s)} onBlur={() => void saveSettings({automod:settings.automod})}/></label>
+                  </div>}
+                  {activeModule.id === "levels" && <div className="settings-form">
+                    <label>XP за сообщение<input type="number" min="1" max="1000" value={settings.levels.xpPerMessage} onChange={e=>setSettings(s=>s?{...s,levels:{...s.levels,xpPerMessage:Number(e.target.value)}}:s)} onBlur={()=>void saveSettings({levels:settings.levels})}/></label>
+                    <label>Кулдаун начисления (секунды)<input type="number" min="5" max="3600" value={settings.levels.cooldownSeconds} onChange={e=>setSettings(s=>s?{...s,levels:{...s.levels,cooldownSeconds:Number(e.target.value)}}:s)} onBlur={()=>void saveSettings({levels:settings.levels})}/></label>
+                    <label>Сложность уровня (множитель)<input type="number" min="10" max="10000" value={settings.levels.xpMultiplier} onChange={e=>setSettings(s=>s?{...s,levels:{...s.levels,xpMultiplier:Number(e.target.value)}}:s)} onBlur={()=>void saveSettings({levels:settings.levels})}/></label>
+                    <label>Сообщение при повышении уровня<textarea value={settings.levels.levelUpMessage} onChange={e=>setSettings(s=>s?{...s,levels:{...s.levels,levelUpMessage:e.target.value}}:s)} onBlur={()=>void saveSettings({levels:settings.levels})}/></label>
+                    <small>Переменные: {"{user}"} и {"{level}"}.</small>
+                  </div>}
+                  {activeModule.id === "welcome" && <div className="settings-form">
+                    {(["welcome","leave"] as const).map(key=><div key={key}><h3>{key==="welcome"?"Приветствие нового участника":"Сообщение при выходе"}</h3>
+                      <label className="module-setting-row"><span>Включено</span><input type="checkbox" checked={settings[key].enabled} onChange={e=>void saveSettings({[key]:{...settings[key],enabled:e.target.checked}} as Partial<GuildSettings>)}/></label>
+                      <label>ID текстового канала<input value={settings[key].channelId||""} placeholder="ID канала Discord" onChange={e=>setSettings(s=>s?{...s,[key]:{...s[key],channelId:e.target.value}}:s)} onBlur={()=>void saveSettings({[key]:settings[key]} as Partial<GuildSettings>)}/></label>
+                      <label>Текст сообщения<textarea value={settings[key].message||""} onChange={e=>setSettings(s=>s?{...s,[key]:{...s[key],message:e.target.value}}:s)} onBlur={()=>void saveSettings({[key]:settings[key]} as Partial<GuildSettings>)}/></label>
+                    </div>)}
+                    <small>Переменные: {"{user}"}, {"{server}"}, {"{membercount}"}.</small>
+                  </div>}
+                  {activeModule.id === "custom-commands" && <div className="settings-form">
+                    <label>Пользовательские команды (одна на строку: имя=ответ)<textarea rows={8} value={Object.entries(settings.customCommands).map(([k,v])=>k+"="+v).join("\n")} onChange={e=>{const obj:Record<string,string>={};for(const line of e.target.value.split("\n")){const i=line.indexOf("=");if(i>0)obj[line.slice(0,i).trim().toLowerCase()]=line.slice(i+1).trim();}setSettings(s=>s?{...s,customCommands:obj}:s);}} onBlur={()=>void saveSettings({customCommands:settings.customCommands})}/></label>
+                    <small>Вызов в Discord: !имя. Максимум 100 команд, имя — латиница/цифры/_/-.</small>
+                  </div>}
+                  {activeModule.id === "announcements" && <div className="settings-form">
+                    <label>Канал оповещений по умолчанию (ID)<input value={settings.announcementChannelId} onChange={e=>setSettings(s=>s?{...s,announcementChannelId:e.target.value}:s)} onBlur={()=>void saveSettings({announcementChannelId:settings.announcementChannelId})}/></label>
+                    <small>Команда /news пока позволяет выбрать канал вручную.</small>
+                  </div>}
+                  {activeModule.id === "moderation" && <div className="settings-form"><p>Команды: /ban, /kick, /mute, /warn, /warnings, /clear.</p><p>Права доступа проверяются Discord для каждой команды. Предупреждения хранятся в памяти и сбрасываются при перезапуске.</p></div>}
+                </>}
+                {savingModule && <small className="save-state">Сохранение…</small>}{error && <div className="notice notice-error">{error}</div>}<span className="status-pill">Конфигурация хранится в памяти до перезапуска процесса.</span>
+              </section>
             </>
           ) : (
             <>
