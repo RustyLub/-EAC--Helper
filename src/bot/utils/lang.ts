@@ -1,13 +1,7 @@
-import { getGuildSettings } from './storage';
+import { getRuntimeGuild } from './runtime';
 
 export async function getGuildLanguage(guildId: string): Promise<'ru' | 'en'> {
-  try {
-    const settings = await getGuildSettings(guildId);
-    return settings.language === 'en' ? 'en' : 'ru';
-  } catch (error) {
-    console.error('[Storage] Не удалось прочитать язык сервера:', error);
-    return 'ru';
-  }
+  return getRuntimeGuild(guildId).language;
 }
 
 export const translations = {
@@ -32,23 +26,16 @@ export const translations = {
     helpGettingStarted: '🚀 Начало работы',
     helpGettingStartedValue: '**1. Настройка языка** — Используйте `/language` для настройки языка сервера.\n**2. Просмотр команд** — Используйте меню ниже для просмотра категорий и команд.',
     helpHowItWorks: 'ℹ️ Как это работает',
-    helpHowItWorksValue: '• Команды разделены на категории для удобной навигации.\n• Настройки сохраняются для каждого сервера индивидуально.',
+    helpHowItWorksValue: '• Команды разделены на категории для удобной навигации.\n• Настройки действуют до перезапуска бота.',
     helpSelectCategoryPlaceholder: 'Выберите категорию...',
-    helpHomeLabel: 'Главная',
-    helpHomeDesc: 'Вернуться в главное меню',
-    helpModerationLabel: 'Модерация',
-    helpModerationDesc: 'Команды модерации',
-    helpEconomyLabel: 'Экономика',
-    helpEconomyDesc: 'Команды экономики',
-    helpNewsLabel: 'Новости',
-    helpNewsDesc: 'Команды новостей',
-    helpUtilityLabel: 'Утилиты',
-    helpUtilityDesc: 'Полезные команды',
+    helpHomeLabel: 'Главная', helpHomeDesc: 'Вернуться в главное меню',
+    helpModerationLabel: 'Модерация', helpModerationDesc: 'Команды модерации',
+    helpEconomyLabel: 'Экономика', helpEconomyDesc: 'Команды экономики',
+    helpNewsLabel: 'Новости', helpNewsDesc: 'Команды новостей',
+    helpUtilityLabel: 'Утилиты', helpUtilityDesc: 'Полезные команды',
     helpCategoryTitle: (emoji: string, label: string) => `${emoji} Команды: ${label}`,
     helpCategoryDesc: 'Нажмите на любую команду ниже, чтобы использовать её:\n\n**Команды**\n',
-    helpBugReport: 'Сообщить о баге',
-    helpSupportServer: 'Репозиторий проекта',
-    madeWithHeart: 'Сделано с ❤️'
+    helpBugReport: 'Сообщить о баге', helpSupportServer: 'Репозиторий проекта', madeWithHeart: 'Сделано с ❤️'
   },
   en: {
     userNotFound: 'User not found on the server.',
@@ -60,33 +47,22 @@ export const translations = {
     warned: (user: string, reason: string) => `User **${user}** has been warned.\nReason: *${reason}*`,
     cleared: (count: number) => `Deleted **${count}** messages.`,
     invalidAmount: 'Please specify an amount between 1 and 100.',
-    newsSent: 'News successfully broadcasted!',
-    langChanged: 'Bot language successfully changed to English.',
+    newsSent: 'News successfully broadcasted!', langChanged: 'Bot language successfully changed to English.',
     rankInfo: (user: string, level: number, xp: number) => `**${user}**\nLevel: ${level}\nExperience: ${xp} XP`,
-    leaderboardTitle: '🏆 Server Leaderboard',
-    leaderboardEmpty: 'Leaderboard is empty.',
+    leaderboardTitle: '🏆 Server Leaderboard', leaderboardEmpty: 'Leaderboard is empty.',
     newsError: 'Error sending news. Ensure the bot has permissions to send messages in the target channel.',
     helpMainTitle: (botName: string) => `📖 ${botName} Help`,
     helpMainDesc: 'Set up your server, pick what to enable, then browse commands below.',
     helpGettingStarted: '🚀 Getting Started',
     helpGettingStartedValue: '**1. Setup Language** — Run `/language` to configure the server language.\n**2. Browse commands** — Use the menu below to view categories and commands.',
-    helpHowItWorks: 'ℹ️ How It Works',
-    helpHowItWorksValue: '• Commands are categorized for easy navigation.\n• Settings are saved per server.',
-    helpSelectCategoryPlaceholder: 'Select a category...',
-    helpHomeLabel: 'Home',
-    helpHomeDesc: 'Return to the main help menu',
-    helpModerationLabel: 'Moderation',
-    helpModerationDesc: 'View moderation commands',
-    helpEconomyLabel: 'Economy',
-    helpEconomyDesc: 'View economy commands',
-    helpNewsLabel: 'News',
-    helpNewsDesc: 'View news commands',
-    helpUtilityLabel: 'Utility',
-    helpUtilityDesc: 'View utility commands',
+    helpHowItWorks: 'ℹ️ How It Works', helpHowItWorksValue: '• Commands are categorized for easy navigation.\n• Settings last until the bot restarts.',
+    helpSelectCategoryPlaceholder: 'Select a category...', helpHomeLabel: 'Home', helpHomeDesc: 'Return to the main help menu',
+    helpModerationLabel: 'Moderation', helpModerationDesc: 'View moderation commands',
+    helpEconomyLabel: 'Economy', helpEconomyDesc: 'View economy commands',
+    helpNewsLabel: 'News', helpNewsDesc: 'View news commands',
+    helpUtilityLabel: 'Utility', helpUtilityDesc: 'View utility commands',
     helpCategoryTitle: (emoji: string, label: string) => `${emoji} ${label} Commands`,
     helpCategoryDesc: 'Click any command mention below to use it:\n\n**Commands**\n',
-    helpBugReport: 'Report Bug',
-    helpSupportServer: 'Project Repository',
-    madeWithHeart: 'Made with ❤️'
+    helpBugReport: 'Report Bug', helpSupportServer: 'Project Repository', madeWithHeart: 'Made with ❤️'
   }
 };
