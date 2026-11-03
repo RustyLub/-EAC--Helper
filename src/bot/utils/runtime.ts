@@ -16,7 +16,7 @@ const defaults = (): RuntimeGuild => ({
   automod: { antiSpam: false, antiInvite: false, antiCaps: false, badWords: [] },
   customCommands: {},
   users: {},
-  modules: {},
+  modules: { moderation: true, automod: true, welcome: true, levels: true, 'custom-commands': true, announcements: true },
 });
 
 export function getRuntimeGuild(guildId: string): RuntimeGuild {
