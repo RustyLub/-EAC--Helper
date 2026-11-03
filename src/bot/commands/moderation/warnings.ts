@@ -37,7 +37,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const timestamp = Math.floor(new Date(warning.createdAt).getTime() / 1000);
     return `**${index + 1}.** ${warning.reason}\nМодератор: ${warning.moderatorTag} · <t:${timestamp}:R>`;
   });
-  const remaining = records.length > 10 ? `\nИ ещё ${records.length - 10} предупреждений.` : '';
+  const remaining = records.length > 3 ? `\nИ ещё ${records.length - 3} предупреждений.` : '';
   await interaction.reply({
     content: `**Предупреждения: ${target.tag}**\n${lines.join('\n\n')}${remaining}`,
     ephemeral: true,
