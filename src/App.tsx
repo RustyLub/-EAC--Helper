@@ -151,7 +151,7 @@ export default function App() {
     try {
       const response = await apiFetch(`/api/guilds/${encodeURIComponent(guildId)}/settings`);
       if (!response.ok) throw new Error(response.status === 503
-        ? "Хранилище настроек недоступно. Проверь Firebase Admin."
+        ? "Не удалось получить настройки панели."
         : `Не удалось загрузить настройки сервера (HTTP ${response.status}).`);
       const data = await response.json() as { modules?: Record<string, boolean> };
       setModuleEnabled(data.modules || {});
@@ -271,7 +271,7 @@ export default function App() {
             <>
               <button className="back-link" onClick={() => setActiveModule(null)}><ArrowLeft size={16} /> Все модули</button>
               <div className="module-heading"><span className="module-icon"><activeModule.icon size={23} /></span><div><div className="page-kicker">{activeModule.category}</div><h1>{activeModule.name}</h1></div></div>
-              <section className="work-panel"><div className="work-panel-icon"><Activity size={24} /></div><h2>Настройки модуля</h2><p>Состояние модуля сохраняется отдельно для этого Discord-сервера в Firebase.</p><div className="module-setting-row"><div><b>{activeModule.name}</b><small>{moduleEnabled[activeModule.id] ? "Модуль включён" : "Модуль выключен"}</small></div><button className={`toggle ${moduleEnabled[activeModule.id] ? "toggle-on" : ""}`} role="switch" aria-checked={moduleEnabled[activeModule.id] === true} disabled={savingModule} onClick={() => void toggleModule(activeModule.id, !moduleEnabled[activeModule.id])}><span /></button></div>{savingModule && <small className="save-state">Сохранение…</small>}{error && <div className="notice notice-error">{error}</div>}<span className="status-pill">Настройка сохраняется на сервере</span></section>
+              <section className="work-panel"><div className="work-panel-icon"><Activity size={24} /></div><h2>Настройки модуля</h2><p>Настройки находятся только в памяти сервера и сбрасываются после перезапуска.</p><div className="module-setting-row"><div><b>{activeModule.name}</b><small>{moduleEnabled[activeModule.id] ? "Модуль включён" : "Модуль выключен"}</small></div><button className={`toggle ${moduleEnabled[activeModule.id] ? "toggle-on" : ""}`} role="switch" aria-checked={moduleEnabled[activeModule.id] === true} disabled={savingModule} onClick={() => void toggleModule(activeModule.id, !moduleEnabled[activeModule.id])}><span /></button></div>{savingModule && <small className="save-state">Сохранение…</small>}{error && <div className="notice notice-error">{error}</div>}<span className="status-pill">Настройка действует до перезапуска</span></section>
             </>
           ) : (
             <>
