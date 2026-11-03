@@ -1,5 +1,6 @@
 import { Events, Interaction } from 'discord.js';
 import { BotClient } from '../types';
+import { handleDashboardButton } from '../commands/utility/dashboard';
 
 export const name = Events.InteractionCreate;
 export const once = false;
@@ -23,6 +24,11 @@ async function reportInteractionError(interaction: Interaction, error: unknown):
 
 export async function execute(interaction: Interaction) {
   try {
+    if (interaction.isButton() && interaction.customId.startsWith('eac_dashboard:')) {
+      await handleDashboardButton(interaction);
+      return;
+    }
+
     if (interaction.isChatInputCommand()) {
       const client = interaction.client as BotClient;
       const command = client.commands.get(interaction.commandName);
