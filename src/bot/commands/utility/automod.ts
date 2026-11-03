@@ -1,6 +1,6 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import { db } from '../../firebase';
 import { getGuildLanguage } from '../../utils/lang';
+import { getGuildSettings, updateGuildSettings } from '../../utils/storage';
 
 type AutomodSettings = {
   antiSpam: boolean;
@@ -31,24 +31,20 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return;
   }
 
-  const language = await getGuildLanguage(interaction.guildId);
-  const english = language === 'en';
+  const english = (await getGuildLanguage(interaction.guildId)) === 'en';
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
     await interaction.reply({ content: english ? 'Administrator permission is required.' : 'Требуются права администратора.', ephemeral: true });
     return;
   }
-  const guildRef = db.collection('guilds').doc(interaction.guildId);
 
   try {
-    const snapshot = await guildRef.get();
-    const stored = snapshot.data()?.automod ?? {};
+    const settings = await getGuildSettings(interaction.guildId);
+    const stored = settings.automod ?? DEFAULTS;
     const current: AutomodSettings = {
       antiSpam: stored.antiSpam === true,
       antiInvite: stored.antiInvite === true,
       antiCaps: stored.antiCaps === true,
-      badWords: Array.isArray(stored.badWords)
-        ? stored.badWords.filter((word: unknown): word is string => typeof word === 'string')
-        : [],
+      badWords: Array.isArray(stored.badWords) ? stored.badWords.filter(word => typeof word === 'string') : [],
     };
 
     const spam = interaction.options.getBoolean('anti_spam');
@@ -58,13 +54,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const changed = spam !== null || invites !== null || caps !== null || words !== null;
 
     if (!changed) {
-      const status = [
-        `Anti-spam: ${current.antiSpam ? 'ON' : 'OFF'}`,
-        `Anti-invite: ${current.antiInvite ? 'ON' : 'OFF'}`,
-        `Anti-caps: ${current.antiCaps ? 'ON' : 'OFF'}`,
-        `Bad words: ${current.badWords.length}`,
-      ].join('\n');
-      await interaction.reply({ content: status, ephemeral: true });
+      await interaction.reply({
+        content: [
+          `Anti-spam: ${current.antiSpam ? 'ON' : 'OFF'}`,
+          `Anti-invite: ${current.antiInvite ? 'ON' : 'OFF'}`,
+          `Anti-caps: ${current.antiCaps ? 'ON' : 'OFF'}`,
+          `Bad words: ${current.badWords.length}`,
+        ].join('\n'),
+        ephemeral: true,
+      });
       return;
     }
 
@@ -72,18 +70,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       antiSpam: spam ?? current.antiSpam,
       antiInvite: invites ?? current.antiInvite,
       antiCaps: caps ?? current.antiCaps,
-      badWords: words === null
-        ? current.badWords
-        : words.trim().toLocaleLowerCase() === 'clear'
-          ? []
-          : words.split(',').map(word => word.trim().toLocaleLowerCase()).filter(Boolean).slice(0, 100),
+      badWords: words === null ? current.badWords : words.trim().toLocaleLowerCase() === 'clear'
+        ? [] : words.split(',').map(word => word.trim().toLocaleLowerCase()).filter(Boolean).slice(0, 100),
     };
 
-    await guildRef.set({
+    await updateGuildSettings(interaction.guildId, {
       automod: next,
-      updatedAt: new Date().toISOString(),
       updatedBy: interaction.user.id,
-    }, { merge: true });
+    });
 
     const result = [
       `Anti-spam: ${next.antiSpam ? 'ON' : 'OFF'}`,
@@ -99,7 +93,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   } catch (error) {
     console.error('[Command:automod] Failed to update settings:', error);
     await interaction.reply({
-      content: english ? 'Could not save automod settings. Check Firestore access.' : 'Не удалось сохранить настройки автомодерации. Проверь доступ к Firestore.',
+      content: english ? 'Could not save automod settings.' : 'Не удалось сохранить настройки автомодерации.',
       ephemeral: true,
     });
   }
