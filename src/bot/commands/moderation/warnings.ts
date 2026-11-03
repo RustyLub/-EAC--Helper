@@ -1,4 +1,5 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { getGuildLanguage } from '../../utils/lang';
 import { getRuntimeGuild } from '../../utils/runtime';
 
 export const data = new SlashCommandBuilder()
@@ -13,8 +14,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
     return;
   }
+
+  const lang = await getGuildLanguage(interaction.guildId);
+  const isRu = lang === 'ru';
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) {
-    await interaction.reply({ content: 'Недостаточно прав для просмотра предупреждений.', ephemeral: true });
+    await interaction.reply({ content: isRu ? 'Недостаточно прав для просмотра предупреждений.' : 'You do not have permission to view warnings.', ephemeral: true });
     return;
   }
 
@@ -24,22 +28,33 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   if (interaction.options.getBoolean('clear') === true) {
     delete guild.warnings[target.id];
-    await interaction.reply({ content: `Предупреждения пользователя **${target.tag}** очищены.`, ephemeral: true });
+    await interaction.reply({
+      content: isRu ? `Предупреждения пользователя **${target.tag}** очищены.` : `Warnings for **${target.tag}** have been cleared.`,
+      ephemeral: true,
+    });
     return;
   }
 
   if (!records.length) {
-    await interaction.reply({ content: `У пользователя **${target.tag}** нет предупреждений в текущем сеансе бота.`, ephemeral: true });
+    await interaction.reply({
+      content: isRu
+        ? `У пользователя **${target.tag}** нет предупреждений в текущем сеансе бота.`
+        : `**${target.tag}** has no warnings in the current bot session.`,
+      ephemeral: true,
+    });
     return;
   }
 
   const lines = records.slice(-3).reverse().map((warning, index) => {
     const timestamp = Math.floor(new Date(warning.createdAt).getTime() / 1000);
-    return `**${index + 1}.** ${warning.reason}\nМодератор: ${warning.moderatorTag} · <t:${timestamp}:R>`;
+    const moderatorLabel = isRu ? 'Модератор' : 'Moderator';
+    return `**${index + 1}.** ${warning.reason}\n${moderatorLabel}: ${warning.moderatorTag} · <t:${timestamp}:R>`;
   });
-  const remaining = records.length > 3 ? `\nИ ещё ${records.length - 3} предупреждений.` : '';
+  const remaining = records.length > 3
+    ? (isRu ? `\nИ ещё ${records.length - 3} предупреждений.` : `\nAnd ${records.length - 3} more warnings.`)
+    : '';
   await interaction.reply({
-    content: `**Предупреждения: ${target.tag}**\n${lines.join('\n\n')}${remaining}`,
+    content: `**${isRu ? 'Предупреждения' : 'Warnings'}: ${target.tag}**\n${lines.join('\n\n')}${remaining}`,
     ephemeral: true,
     allowedMentions: { parse: [] },
   });
