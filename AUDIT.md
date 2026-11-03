@@ -32,8 +32,9 @@
 - Для автоматического XP требуется включённый Message Content Intent в Discord Developer Portal.
 - Для приветствий и сообщений об уходе требуется Server Members Intent.
 - Настройки канала/текста для приветствий и фильтры automod задаются slash-командами `/greetings` и `/automod`; веб-панель включает/отключает сами модули.
-- Требуется выполнить production build и проверить его результат через GitHub Actions/Render. Реальный OAuth и Discord Gateway требуют секретов владельца приложения и интеграционного теста.
-- Проверка прав в Discord API и реальная доступность каналов/прав бота требуют проверки на живом сервере.
+- GitHub Actions проверяет TypeScript Discord-бота, Express-сервер и frontend, собирает Vite и запускает тесты изоляции/сброса RuntimeGuild на Ubuntu и Windows.
+- Реальный Discord OAuth2, Discord Gateway, права бота и доступность каналов нельзя полностью проверить без секретов владельца и тестового Discord-сервера.
+- Production deployment на Render требует заполнения секретов владельцем приложения и проверки callback URL.
 
 ## Обязательные настройки владельца
 
