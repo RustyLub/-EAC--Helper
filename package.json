@@ -10,10 +10,11 @@
     "bot": "tsx src/bot/main.ts",
     "dev": "tsx server.ts",
     "build:bot": "tsc --noEmit -p tsconfig.bot.json",
-    "build:web": "vite build",
+    "build:web": "npm run typecheck:web && vite build",
     "build": "npm run build:bot && npm run build:web",
     "start": "tsx server.ts",
-    "lint": "npm run build:bot"
+    "lint": "npm run build:bot",
+    "typecheck:web": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -38,6 +39,8 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
   }
 }
