@@ -234,8 +234,7 @@ async function startServer() {
   app.get("/api/guilds/:guildId/roles", guildResourceHandler("roles"));
 
   const supportedModules = new Set([
-    "moderation", "automod", "action-log", "welcome", "tickets",
-    "levels", "custom-commands", "announcements",
+    "moderation", "automod", "welcome", "levels", "custom-commands", "announcements",
   ]);
 
   const authorizeGuildSettings = async (req: express.Request, res: express.Response) => {
@@ -261,7 +260,7 @@ async function startServer() {
   app.get("/api/guilds/:guildId/settings", async (req, res) => {
     if (!(await authorizeGuildSettings(req, res))) return;
     const stored = getRuntimeGuild(req.params.guildId).modules;
-    const modules = Object.fromEntries([...supportedModules].map((id) => [id, stored[id] === true]));
+    const modules = Object.fromEntries([...supportedModules].map((id) => [id, stored[id] !== false]));
     res.json({ guildId: req.params.guildId, modules });
   });
 
@@ -271,14 +270,13 @@ async function startServer() {
     if (!requested || typeof requested !== "object" || Array.isArray(requested)) {
       return res.status(400).json({ error: "Expected a modules object" });
     }
+    const entries = Object.entries(requested);
+    const invalid = entries.find(([id, enabled]) => !supportedModules.has(id) || typeof enabled !== "boolean");
+    if (invalid) return res.status(400).json({ error: `Invalid module setting: ${invalid[0]}` });
     const current = getRuntimeGuild(req.params.guildId).modules;
-    for (const [id, enabled] of Object.entries(requested)) {
-      if (!supportedModules.has(id) || typeof enabled !== "boolean") {
-        return res.status(400).json({ error: `Invalid module setting: ${id}` });
-      }
-      current[id] = enabled;
-    }
-    res.json({ guildId: req.params.guildId, modules: current });
+    for (const [id, enabled] of entries) current[id] = enabled as boolean;
+    const modules = Object.fromEntries([...supportedModules].map((id) => [id, current[id] !== false]));
+    res.json({ guildId: req.params.guildId, modules });
   });
 
   startBot().catch((error) => console.error("Discord bot failed to start:", error));
