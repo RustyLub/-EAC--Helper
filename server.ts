@@ -58,6 +58,7 @@ async function startServer() {
     const response = await fetch("https://discord.com/api/users/@me/guilds", {
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (response.status === 401) return null;
     if (!response.ok) return false;
 
     const guilds = await response.json() as Array<{ id: string; permissions: string }>;
@@ -194,7 +195,10 @@ async function startServer() {
       const response = await fetch("https://discord.com/api/users/@me/guilds", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) return res.status(response.status).json({ error: "Failed to fetch guilds" });
+      if (!response.ok) {
+        if (response.status === 401) res.clearCookie("discord_token", cookieOptions);
+        return res.status(response.status).json({ error: "Failed to fetch guilds" });
+      }
 
       const guilds = await response.json() as Array<{ permissions: string }>;
       const manageableGuilds = guilds.filter((guild) => {
@@ -213,9 +217,12 @@ async function startServer() {
 
     const guildId = req.params.guildId;
     try {
-      if (!(await userCanManageGuild(userToken, guildId))) {
-        return res.status(403).json({ error: "You do not have permission to manage this server" });
+      const allowed = await userCanManageGuild(userToken, guildId);
+      if (allowed === null) {
+        res.clearCookie("discord_token", cookieOptions);
+        return res.status(401).json({ error: "Discord session expired" });
       }
+      if (!allowed) return res.status(403).json({ error: "You do not have permission to manage this server" });
 
       const botToken = process.env.DISCORD_TOKEN;
       if (!botToken) return res.status(500).json({ error: "Bot token not configured" });
@@ -245,6 +252,11 @@ async function startServer() {
     }
     try {
       const allowed = await userCanManageGuild(token, req.params.guildId);
+      if (allowed === null) {
+        res.clearCookie("discord_token", cookieOptions);
+        res.status(401).json({ error: "Discord session expired" });
+        return false;
+      }
       if (!allowed) {
         res.status(403).json({ error: "You do not have permission to manage this server" });
         return false;
