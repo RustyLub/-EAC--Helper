@@ -3,6 +3,7 @@ import path from "path";
 import { randomBytes } from "crypto";
 import { createServer as createViteServer } from "vite";
 import { startBot } from "./src/bot/index";
+import { getRuntimeGuild } from "./src/bot/utils/runtime";
 import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
 
@@ -256,11 +257,10 @@ async function startServer() {
     }
   };
 
-  // Settings are held only in this server process memory; nothing is written to disk.
-  const runtimeModuleSettings = new Map<string, Record<string, boolean>>();
+  // Web-panel settings share the bot runtime state and remain memory-only.
   app.get("/api/guilds/:guildId/settings", async (req, res) => {
     if (!(await authorizeGuildSettings(req, res))) return;
-    const stored = runtimeModuleSettings.get(req.params.guildId) ?? {};
+    const stored = getRuntimeGuild(req.params.guildId).modules;
     const modules = Object.fromEntries([...supportedModules].map((id) => [id, stored[id] === true]));
     res.json({ guildId: req.params.guildId, modules });
   });
@@ -271,14 +271,13 @@ async function startServer() {
     if (!requested || typeof requested !== "object" || Array.isArray(requested)) {
       return res.status(400).json({ error: "Expected a modules object" });
     }
-    const current = runtimeModuleSettings.get(req.params.guildId) ?? {};
+    const current = getRuntimeGuild(req.params.guildId).modules;
     for (const [id, enabled] of Object.entries(requested)) {
       if (!supportedModules.has(id) || typeof enabled !== "boolean") {
         return res.status(400).json({ error: `Invalid module setting: ${id}` });
       }
       current[id] = enabled;
     }
-    runtimeModuleSettings.set(req.params.guildId, current);
     res.json({ guildId: req.params.guildId, modules: current });
   });
 
