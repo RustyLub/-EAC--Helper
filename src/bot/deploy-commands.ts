@@ -29,7 +29,7 @@ export async function deployCommands() {
   const rest = new REST({ version: '10' }).setToken(token);
   try {
     console.log(`[Bot] Registering ${commands.length} application commands.`);
-    if (process.env.GUILD_ID && /^\d{17,20}$/.test(process.env.GUILD_ID)) {
+    if (guildId && /^\d{17,20}$/.test(guildId)) {
       const data = await rest.put(
         Routes.applicationGuildCommands(clientId, guildId),
         { body: commands },
