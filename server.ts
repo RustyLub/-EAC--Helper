@@ -12,6 +12,7 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
+  app.disable("x-powered-by");
   const PORT = Number(process.env.PORT) || 3000;
   const isProduction = process.env.NODE_ENV === "production";
   if (isProduction) {
@@ -43,6 +44,10 @@ async function startServer() {
     next();
   });
 
+  app.use("/api", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    next();
+  });
   app.set("trust proxy", 1);
   app.use(cookieParser());
   app.use(express.json());
