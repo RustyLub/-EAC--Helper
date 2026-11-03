@@ -1,5 +1,5 @@
 import { Events, GuildMember, EmbedBuilder } from 'discord.js';
-import { db } from '../firebase';
+import { getRuntimeGuild } from '../utils/runtime';
 
 export const name = Events.GuildMemberRemove;
 export const once = false;
@@ -8,20 +8,15 @@ export async function execute(member: GuildMember) {
   if (!member.guild) return;
 
   try {
-    const guildId = member.guild.id;
-    const guildDoc = await db.collection('guilds').doc(guildId).get();
-    
-    if (!guildDoc.exists) return;
-    
-    const data = guildDoc.data();
-    if (!data?.leave?.enabled || !data?.leave?.channelId) return;
+    const data = getRuntimeGuild(member.guild.id)[ 'leave' ];
+    if (!data?.enabled || !data?.channelId) return;
 
-    const fetchedChannel = await member.guild.channels.fetch(data.leave.channelId).catch(() => null);
+    const fetchedChannel = await member.guild.channels.fetch(data.channelId).catch(() => null);
     if (!fetchedChannel?.isSendable()) return;
     const botMember = await member.guild.members.fetchMe().catch(() => null);
     if (!botMember?.permissionsIn(fetchedChannel).has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) return;
 
-    let message = data.leave.message || "**{user}** покинул(а) сервер **{server}**.";
+    let message = data.message || "**{user}** покинул(а) сервер **{server}**.";
     
     // Replace variables
     message = message
