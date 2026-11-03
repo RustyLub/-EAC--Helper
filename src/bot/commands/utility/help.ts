@@ -23,6 +23,7 @@ function getCategories(lang: 'ru' | 'en') {
         { name: 'kick', desc: lang === 'ru' ? 'Кикнуть пользователя.' : 'Kick a user from the server.' },
         { name: 'mute', desc: lang === 'ru' ? 'Выдать тайм-аут.' : 'Mute a user (timeout).' },
         { name: 'warn', desc: lang === 'ru' ? 'Выдать предупреждение.' : 'Warn a user.' },
+        { name: 'warnings', desc: lang === 'ru' ? 'Посмотреть или очистить предупреждения.' : 'View or clear warnings.' },
         { name: 'clear', desc: lang === 'ru' ? 'Очистить сообщения.' : 'Clear messages in a channel.' }
       ]
     },
