@@ -4,11 +4,6 @@ import { getRuntimeGuild } from '../utils/runtime';
 export const name = Events.MessageCreate;
 export const once = false;
 
-const XP_PER_MESSAGE = 15;
-const XP_MULTIPLIER = 100;
-const XP_COOLDOWN_MS = 60_000;
-const SPAM_WINDOW_MS = 5_000;
-const SPAM_LIMIT = 5;
 const MAP_LIMIT = 20_000;
 const spamTracker = new Map<string, number[]>();
 const xpCooldowns = new Map<string, number>();
@@ -26,12 +21,12 @@ function isMostlyUppercase(content: string): boolean {
 
 function pruneMemory(now: number): void {
   for (const [key, timestamps] of spamTracker) {
-    const recent = timestamps.filter(timestamp => now - timestamp < SPAM_WINDOW_MS);
+    const recent = timestamps.filter(timestamp => now - timestamp < 30_000);
     if (recent.length) spamTracker.set(key, recent);
     else spamTracker.delete(key);
   }
   for (const [key, timestamp] of xpCooldowns) {
-    if (now - timestamp > XP_COOLDOWN_MS * 2) xpCooldowns.delete(key);
+    if (now - timestamp > 10 * 60_000) xpCooldowns.delete(key);
   }
   // Prevent unbounded memory use without clearing active users' protection state.
   while (spamTracker.size > MAP_LIMIT) {
@@ -93,16 +88,16 @@ export async function execute(message: Message) {
     }
 
     if (automodEnabled && !bypass && automod.antiSpam === true) {
-      const recent = (spamTracker.get(memberKey) ?? []).filter(timestamp => now - timestamp < SPAM_WINDOW_MS);
+      const recent = (spamTracker.get(memberKey) ?? []).filter(timestamp => now - timestamp < guildData.automod.spamWindowMs);
       recent.push(now);
       spamTracker.set(memberKey, recent);
 
-      if (recent.length >= SPAM_LIMIT) {
+      if (recent.length >= guildData.automod.spamLimit) {
         spamTracker.delete(memberKey);
         await message.delete().catch(() => null);
-        const timedOut = await message.member?.timeout(60_000, 'EAC Helper: anti-spam').then(() => true).catch(() => false);
+        const timedOut = await message.member?.timeout(guildData.automod.timeoutMs, 'EAC Helper: anti-spam').then(() => true).catch(() => false);
         await sendNotice(timedOut
-          ? `${message.author} получил тайм-аут на 1 минуту за спам.`
+          ? `${message.author} получил тайм-аут за спам.`
           : `${message.author}, остановите спам. Не удалось выдать тайм-аут — проверьте права бота.`);
         return;
       }
@@ -119,20 +114,23 @@ export async function execute(message: Message) {
 
     if (guildData.modules.levels === false) return;
 
+    const levels = guildData.levels;
+    const cooldownMs = levels.cooldownSeconds * 1000;
     const lastXpAt = xpCooldowns.get(memberKey) ?? 0;
-    if (now - lastXpAt < XP_COOLDOWN_MS) return;
+    if (now - lastXpAt < cooldownMs) return;
     const user = guildData.users[userId] ?? { username: message.author.username, xp: 0 };
-    const oldLevel = Math.floor(Math.sqrt(user.xp / XP_MULTIPLIER));
+    const oldLevel = Math.floor(Math.sqrt(user.xp / levels.xpMultiplier));
     user.username = message.author.username;
-    user.xp += XP_PER_MESSAGE;
+    user.xp += levels.xpPerMessage;
     guildData.users[userId] = user;
-    const newLevel = Math.floor(Math.sqrt(user.xp / XP_MULTIPLIER));
+    const newLevel = Math.floor(Math.sqrt(user.xp / levels.xpMultiplier));
     xpCooldowns.set(memberKey, now);
 
     if (newLevel > oldLevel) {
+      const levelMessage = levels.levelUpMessage || 'Поздравляем, {user}! Вы достигли {level} уровня!';
       await sendNotice(guildData.language === 'en'
         ? `Congratulations ${message.author}! You've reached level **${newLevel}**!`
-        : `Поздравляем, ${message.author}! Вы достигли **${newLevel}** уровня!`);
+        : levelMessage.replaceAll('{user}', message.author.toString()).replaceAll('{level}', String(newLevel)));
     }
   } catch (error) {
     console.error('[Bot] Ошибка в обработчике messageCreate:', error);

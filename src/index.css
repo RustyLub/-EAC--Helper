@@ -41,3 +41,14 @@ button:disabled{opacity:.6;cursor:wait}
 .module-setting-row{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:25px 0 10px;padding:16px;border:1px solid #2b3a4c;border-radius:10px;background:#0d151f}
 .module-setting-row>div{display:flex;flex-direction:column;gap:5px}.module-setting-row b{font-size:13px}.module-setting-row small,.save-state{font-size:11px;color:#8492a4}
 .toggle{width:48px;height:27px;padding:3px;border:1px solid #435064;border-radius:30px;background:#273242;transition:.18s}.toggle span{display:block;width:19px;height:19px;border-radius:50%;background:#d4dbe5;transition:.18s}.toggle-on{background:#176b55;border-color:#2eaa82}.toggle-on span{transform:translateX(20px);background:white}.toggle:disabled{opacity:.55;cursor:wait}.status-enabled{color:#79d5b2;border-color:#276d58;background:#122a25}.save-state{display:block;margin:0 0 12px}
+
+
+.settings-form{display:flex;flex-direction:column;gap:13px;margin:18px 0}
+.settings-form label{display:flex;flex-direction:column;gap:7px;color:#cbd5e1;font-size:12px;font-weight:600}
+.settings-form input:not([type=checkbox]),.settings-form textarea{width:100%;padding:10px 12px;border:1px solid #344457;border-radius:8px;background:#0b121b;color:#eef3f9;outline:none;font:inherit;font-weight:400}
+.settings-form input:focus,.settings-form textarea:focus{border-color:#b83a55}
+.settings-form textarea{min-height:76px;resize:vertical;line-height:1.5}
+.settings-form input[type=checkbox]{width:18px;height:18px;accent-color:#d74762}
+.settings-form h3{margin:12px 0 4px;color:#f0f4fa;font-size:14px}
+.settings-form .module-setting-row{margin:0}
+.settings-form small{color:#8492a4;font-size:10px;line-height:1.6}

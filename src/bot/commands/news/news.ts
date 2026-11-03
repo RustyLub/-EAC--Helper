@@ -8,6 +8,7 @@ import {
   NewsChannel,
 } from 'discord.js';
 import { getGuildLanguage, translations } from '../../utils/lang';
+import { getRuntimeGuild } from '../../utils/runtime';
 
 export const data = new SlashCommandBuilder()
   .setName('news')
@@ -15,7 +16,7 @@ export const data = new SlashCommandBuilder()
   .addChannelOption(option =>
     option.setName('channel')
       .setDescription('Target channel')
-      .setRequired(true)
+      .setRequired(false)
       .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
   .addStringOption(option =>
     option.setName('title')
@@ -45,7 +46,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return;
   }
 
-  const targetChannel = interaction.options.getChannel('channel', true);
+  const configuredId = getRuntimeGuild(interaction.guildId!).announcementChannelId;
+  const selectedChannel = interaction.options.getChannel('channel');
+  const targetChannel = selectedChannel ?? (configuredId ? await interaction.guild.channels.fetch(configuredId).catch(() => null) : null);
+  if (!targetChannel) {
+    await interaction.reply({ content: 'Укажите канал в /news или задайте канал по умолчанию в панели.', ephemeral: true });
+    return;
+  }
   if (!(targetChannel instanceof TextChannel) && !(targetChannel instanceof NewsChannel)) {
     await interaction.reply({ content: t.newsError, ephemeral: true });
     return;
