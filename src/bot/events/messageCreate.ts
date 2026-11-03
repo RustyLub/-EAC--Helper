@@ -21,7 +21,7 @@ function isMostlyUppercase(content: string): boolean {
 
 function pruneMemory(now: number): void {
   for (const [key, timestamps] of spamTracker) {
-    const recent = timestamps.filter(timestamp => now - timestamp < SPAM_WINDOW_MS);
+    const recent = timestamps.filter(timestamp => now - timestamp < 30_000);
     if (recent.length) spamTracker.set(key, recent);
     else spamTracker.delete(key);
   }
@@ -123,7 +123,7 @@ export async function execute(message: Message) {
     user.username = message.author.username;
     user.xp += levels.xpPerMessage;
     guildData.users[userId] = user;
-    const newLevel = Math.floor(Math.sqrt(user.xp / XP_MULTIPLIER));
+    const newLevel = Math.floor(Math.sqrt(user.xp / levels.xpMultiplier));
     xpCooldowns.set(memberKey, now);
 
     if (newLevel > oldLevel) {
