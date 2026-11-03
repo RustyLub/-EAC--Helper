@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/dashboard-settings-foundation
+      - feature/components-v2-dashboard
   pull_request:
     branches:
       - main
@@ -18,7 +19,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm install
       - run: npm run build
       - run: npm run lint
 
