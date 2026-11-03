@@ -39,9 +39,9 @@ EAC Helper — Discord-бот и веб-панель управления. Backe
 - `/customcommand` — создание, удаление и просмотр пользовательских команд `!name`.
 - `/rank`, `/leaderboard` — XP, уровни и таблица лидеров.
 - `/ban`, `/kick`, `/mute`, `/warn`, `/warnings`, `/clear` — модерация и просмотр/очистка предупреждений.
+- `/news` — публикация объявления.
 
 Предупреждения хранятся в памяти процесса (до 100 на пользователя) и доступны через `/warnings`; после перезапуска они сбрасываются.
-- `/news` — публикация объявления.
 
 Slash-команды регистрируются автоматически при запуске. Если указан `GUILD_ID`, команды регистрируются на тестовом сервере; иначе — глобально.
 
@@ -79,10 +79,11 @@ npm run build
 npm start
 ```
 
-- `npm run build:bot` — проверка TypeScript backend.
-- `npm run build:web` — сборка React/Vite в `dist/`.
+- `npm run build:bot` — проверка TypeScript Discord-бота и Express-сервера.
+- `npm run typecheck:web` — проверка TypeScript веб-панели и конфигурации Vite.
+- `npm run build:web` — проверка frontend и сборка React/Vite в `dist/`.
 - `npm run build` — обе проверки/сборки.
-- `npm run lint` — проверка TypeScript backend.
+- `npm run lint` — повторная проверка TypeScript backend и Express-сервера.
 - `npm run bot` — запуск только Discord-бота без Express API и веб-панели.
 - `npm start` — запуск полного сервиса (веб-панель + API + Discord-бот).
 
