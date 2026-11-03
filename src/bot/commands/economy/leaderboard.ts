@@ -5,8 +5,8 @@ export const data=new SlashCommandBuilder().setName('leaderboard').setDescriptio
 export async function execute(interaction:ChatInputCommandInteraction){
  if(!interaction.inGuild()||!interaction.guildId){await interaction.reply({content:'Эта команда доступна только на сервере.',ephemeral:true});return;}
  const t=translations[await getGuildLanguage(interaction.guildId)];
- const rows=Object.entries(getRuntimeGuild(interaction.guildId).users).sort((a,b)=>b[1].xp-a[1].xp).slice(0,10);
+ const guild=getRuntimeGuild(interaction.guildId); const rows=Object.entries(guild.users).sort((a,b)=>b[1].xp-a[1].xp).slice(0,10);
  if(!rows.length){await interaction.reply({content:t.leaderboardEmpty+' XP появится по мере общения и будет сброшен после перезапуска.',ephemeral:true});return;}
- const description=rows.map(([id,u],i)=>{const level=Math.floor(Math.sqrt(u.xp/100));return `**${i+1}.** ${u.username||`<@${id}>`} — Lvl ${level} (${u.xp} XP)`;}).join('\n');
+ const description=rows.map(([id,u],i)=>{const level=Math.floor(Math.sqrt(u.xp/guild.levels.xpMultiplier));return `**${i+1}.** ${u.username||`<@${id}>`} — Lvl ${level} (${u.xp} XP)`;}).join('\n');
  await interaction.reply({embeds:[new EmbedBuilder().setTitle(t.leaderboardTitle).setColor('#fbbf24').setDescription(description)]});
 }
