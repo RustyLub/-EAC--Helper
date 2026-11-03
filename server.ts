@@ -14,7 +14,7 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
   const isProduction = process.env.NODE_ENV === "production";
-  const frontendOrigin = new URL(process.env.FRONTEND_URL || process.env.APP_URL || `http://localhost:${PORT}`).origin;
+  const frontendOrigin = new URL(process.env.APP_URL || `http://localhost:${PORT}`).origin;
   const cookieOptions = {
     httpOnly: true,
     secure: isProduction,
