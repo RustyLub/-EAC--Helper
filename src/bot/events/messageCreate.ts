@@ -68,8 +68,9 @@ export async function execute(message: Message) {
   try {
     const guildData = getRuntimeGuild(guildId);
     const automod = guildData.automod;
+    const automodEnabled = guildData.modules.automod !== false;
 
-    if (!bypass && automod.antiInvite === true && /(?:discord\.gg\/|discord(?:app)?\.com\/invite\/)[\w-]+/i.test(content)) {
+    if (automodEnabled && !bypass && automod.antiInvite === true && /(?:discord\.gg\/|discord(?:app)?\.com\/invite\/)[\w-]+/i.test(content)) {
       await message.delete().catch(() => null);
       await sendNotice(`${message.author}, отправка приглашений запрещена.`);
       return;
@@ -79,19 +80,19 @@ export async function execute(message: Message) {
       ? automod.badWords.filter((word: unknown): word is string => typeof word === 'string' && word.trim().length > 0)
       : [];
     const normalizedContent = content.toLocaleLowerCase();
-    if (!bypass && badWords.some(word => normalizedContent.includes(word.toLocaleLowerCase().trim()))) {
+    if (automodEnabled && !bypass && badWords.some(word => normalizedContent.includes(word.toLocaleLowerCase().trim()))) {
       await message.delete().catch(() => null);
       await sendNotice(`${message.author}, сообщение содержит запрещённое слово.`);
       return;
     }
 
-    if (!bypass && automod.antiCaps === true && isMostlyUppercase(content)) {
+    if (automodEnabled && !bypass && automod.antiCaps === true && isMostlyUppercase(content)) {
       await message.delete().catch(() => null);
       await sendNotice(`${message.author}, пожалуйста, не используйте чрезмерное количество заглавных букв.`);
       return;
     }
 
-    if (!bypass && automod.antiSpam === true) {
+    if (automodEnabled && !bypass && automod.antiSpam === true) {
       const recent = (spamTracker.get(memberKey) ?? []).filter(timestamp => now - timestamp < SPAM_WINDOW_MS);
       recent.push(now);
       spamTracker.set(memberKey, recent);
@@ -107,7 +108,7 @@ export async function execute(message: Message) {
       }
     }
 
-    if (content.startsWith('!')) {
+    if (guildData.modules['custom-commands'] !== false && content.startsWith('!')) {
       const commandName = content.slice(1).trim().split(/\s+/)[0]?.toLowerCase();
       const customCommands = guildData.customCommands;
       if (commandName && customCommands && typeof customCommands[commandName] === 'string') {
@@ -115,6 +116,8 @@ export async function execute(message: Message) {
         return;
       }
     }
+
+    if (guildData.modules.levels === false) return;
 
     const lastXpAt = xpCooldowns.get(memberKey) ?? 0;
     if (now - lastXpAt < XP_COOLDOWN_MS) return;
