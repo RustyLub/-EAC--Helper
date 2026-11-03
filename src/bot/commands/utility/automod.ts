@@ -24,6 +24,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     await interaction.reply({ content: [`Anti-spam: ${current.antiSpam ? 'ON' : 'OFF'}`, `Anti-invite: ${current.antiInvite ? 'ON' : 'OFF'}`, `Anti-caps: ${current.antiCaps ? 'ON' : 'OFF'}`, `Bad words: ${current.badWords.length}`, 'Настройки действуют до перезапуска бота.'].join('\n'), ephemeral: true }); return;
   }
   state.automod = {
+    ...current,
     antiSpam: spam ?? current.antiSpam, antiInvite: invites ?? current.antiInvite, antiCaps: caps ?? current.antiCaps,
     badWords: words === null ? current.badWords : words.trim().toLowerCase() === 'clear' ? [] : words.split(',').map(w => w.trim().toLowerCase()).filter(Boolean).slice(0, 100),
   };
