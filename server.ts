@@ -256,21 +256,13 @@ async function startServer() {
     }
   };
 
+  // Settings are held only in this server process memory; nothing is written to disk.
+  const runtimeModuleSettings = new Map<string, Record<string, boolean>>();
   app.get("/api/guilds/:guildId/settings", async (req, res) => {
     if (!(await authorizeGuildSettings(req, res))) return;
-    try {
-      const { db } = await import("./src/bot/firebase");
-      const snapshot = await db.collection("guildSettings").doc(req.params.guildId).get();
-      const data = snapshot.exists ? snapshot.data() : undefined;
-      const storedModules = data?.modules && typeof data.modules === "object" ? data.modules : {};
-      const modules = Object.fromEntries(
-        [...supportedModules].map((id) => [id, storedModules[id] === true]),
-      );
-      res.json({ guildId: req.params.guildId, modules });
-    } catch (error) {
-      console.error("Failed to load guild settings:", error);
-      res.status(503).json({ error: "Settings storage is unavailable. Check Firebase Admin credentials." });
-    }
+    const stored = runtimeModuleSettings.get(req.params.guildId) ?? {};
+    const modules = Object.fromEntries([...supportedModules].map((id) => [id, stored[id] === true]));
+    res.json({ guildId: req.params.guildId, modules });
   });
 
   app.put("/api/guilds/:guildId/settings", async (req, res) => {
@@ -279,28 +271,15 @@ async function startServer() {
     if (!requested || typeof requested !== "object" || Array.isArray(requested)) {
       return res.status(400).json({ error: "Expected a modules object" });
     }
-
-    const updates: Record<string, boolean> = {};
+    const current = runtimeModuleSettings.get(req.params.guildId) ?? {};
     for (const [id, enabled] of Object.entries(requested)) {
       if (!supportedModules.has(id) || typeof enabled !== "boolean") {
         return res.status(400).json({ error: `Invalid module setting: ${id}` });
       }
-      updates[id] = enabled;
+      current[id] = enabled;
     }
-
-    try {
-      const { db } = await import("./src/bot/firebase");
-      const ref = db.collection("guildSettings").doc(req.params.guildId);
-      await ref.set({
-        modules: updates,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
-      const snapshot = await ref.get();
-      res.json({ guildId: req.params.guildId, modules: snapshot.data()?.modules ?? {} });
-    } catch (error) {
-      console.error("Failed to save guild settings:", error);
-      res.status(503).json({ error: "Settings storage is unavailable. Check Firebase Admin credentials." });
-    }
+    runtimeModuleSettings.set(req.params.guildId, current);
+    res.json({ guildId: req.params.guildId, modules: current });
   });
 
   startBot().catch((error) => console.error("Discord bot failed to start:", error));
