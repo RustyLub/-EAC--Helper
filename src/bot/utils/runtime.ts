@@ -7,6 +7,7 @@ export type RuntimeGuild = {
   welcome?: GreetingSettings;
   leave?: GreetingSettings;
   users: Record<string, { username: string; xp: number }>;
+  warnings: Record<string, Array<{ reason: string; createdAt: string; moderatorId: string; moderatorTag: string }>>;
   modules: Record<string, boolean>;
 };
 
@@ -16,6 +17,7 @@ const defaults = (): RuntimeGuild => ({
   automod: { antiSpam: false, antiInvite: false, antiCaps: false, badWords: [] },
   customCommands: {},
   users: {},
+  warnings: {},
   modules: { moderation: true, automod: true, welcome: true, levels: true, 'custom-commands': true, announcements: true },
 });
 
