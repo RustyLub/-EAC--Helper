@@ -36,6 +36,14 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
+call npm test
+if errorlevel 1 (
+  echo.
+  echo [ОШИБКА] Тесты оперативной памяти не пройдены.
+  pause
+  exit /b 1
+)
+echo.
 echo Запускаю веб-панель, API и Discord-бота...
 call npm start
 if errorlevel 1 (
