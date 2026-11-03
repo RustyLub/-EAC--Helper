@@ -26,6 +26,7 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+echo Перед обновлением останови запущенный бот (Ctrl+C в его окне).
 echo Получаю обновления...
 git pull --ff-only
 if errorlevel 1 (
@@ -41,5 +42,7 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-echo Обновление завершено. Твой .env и настройки не затронуты.
+echo Обновление завершено. Файл .env сохранён.
+echo Временные настройки и XP в памяти сбрасываются после перезапуска.
+echo Теперь запусти Start.bat.
 pause
