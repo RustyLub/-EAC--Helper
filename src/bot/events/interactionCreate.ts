@@ -39,7 +39,7 @@ export async function execute(interaction: Interaction) {
       }
       if (interaction.inGuild() && interaction.guildId) {
         const modules = getRuntimeGuild(interaction.guildId).modules;
-        const moderationCommands = ['ban', 'kick', 'mute', 'warn', 'clear'];
+        const moderationCommands = ['ban', 'kick', 'mute', 'warn', 'warnings', 'clear'];
         if (moderationCommands.includes(interaction.commandName) && modules.moderation === false) {
           await interaction.reply({ content: 'Модуль модерации отключён в веб-панели.', ephemeral: true });
           return;
