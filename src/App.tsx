@@ -189,6 +189,12 @@ export default function App() {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({})) as { error?: string };
+        if (response.status === 401) {
+          setUser(null);
+          setGuilds([]);
+          setSelectedGuild(null);
+          setActiveModule(null);
+        }
         throw new Error(data.error || `Не удалось сохранить настройку (HTTP ${response.status}).`);
       }
       const data = await response.json() as { modules?: Record<string, boolean> };
