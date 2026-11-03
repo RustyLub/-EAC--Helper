@@ -88,7 +88,15 @@ export default function App() {
       const userData = await userResponse.json() as DiscordUser;
       setUser(userData);
       const guildResponse = await apiFetch("/api/guilds");
-      if (!guildResponse.ok) throw new Error(`Не удалось загрузить список серверов Discord (HTTP ${guildResponse.status}).`);
+      if (!guildResponse.ok) {
+        if (guildResponse.status === 401) {
+          setUser(null);
+          setGuilds([]);
+          setSelectedGuild(null);
+          return;
+        }
+        throw new Error(`Не удалось загрузить список серверов Discord (HTTP ${guildResponse.status}).`);
+      }
       const guildData = await guildResponse.json() as Guild[];
       setGuilds(guildData);
     } catch (e) {
@@ -149,9 +157,17 @@ export default function App() {
     setError("");
     try {
       const response = await apiFetch(`/api/guilds/${encodeURIComponent(guildId)}/settings`);
-      if (!response.ok) throw new Error(response.status === 503
-        ? "Не удалось получить настройки панели."
-        : `Не удалось загрузить настройки сервера (HTTP ${response.status}).`);
+      if (!response.ok) {
+        if (response.status === 401) {
+          setUser(null);
+          setSelectedGuild(null);
+          setActiveModule(null);
+          return;
+        }
+        throw new Error(response.status === 503
+          ? "Не удалось получить настройки панели."
+          : `Не удалось загрузить настройки сервера (HTTP ${response.status}).`);
+      }
       const data = await response.json() as { modules?: Record<string, boolean> };
       setModuleEnabled(data.modules || {});
     } catch (e) {
