@@ -33,7 +33,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return;
   }
 
-  const lines = records.slice(-10).reverse().map((warning, index) => {
+  const lines = records.slice(-3).reverse().map((warning, index) => {
     const timestamp = Math.floor(new Date(warning.createdAt).getTime() / 1000);
     return `**${index + 1}.** ${warning.reason}\nМодератор: ${warning.moderatorTag} · <t:${timestamp}:R>`;
   });
