@@ -5,5 +5,5 @@
     "types": ["node"],
     "jsx": "preserve"
   },
-  "include": ["src/bot/**/*.ts"]
+  "include": ["src/bot/**/*.ts", "server.ts"]
 }
