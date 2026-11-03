@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-title EAC Helper - Discord Bot
+title EAC Helper - Web Panel and Discord Bot
 where node >nul 2>nul
 if errorlevel 1 (
   echo [ОШИБКА] Node.js не найден. Установи Node.js 22 LTS или новее.
@@ -35,8 +35,8 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-echo Запускаю EAC Helper...
-call npm run bot
+echo Запускаю веб-панель, API и Discord-бота...
+call npm start
 if errorlevel 1 (
   echo.
   echo Бот завершил работу с ошибкой. Проверь сообщения выше.
