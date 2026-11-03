@@ -284,24 +284,67 @@ async function startServer() {
   // Web-panel settings share the bot runtime state and remain memory-only.
   app.get("/api/guilds/:guildId/settings", async (req, res) => {
     if (!(await authorizeGuildSettings(req, res))) return;
-    const stored = getRuntimeGuild(req.params.guildId).modules;
-    const modules = Object.fromEntries([...supportedModules].map((id) => [id, stored[id] !== false]));
-    res.json({ guildId: req.params.guildId, modules });
+    const stored = getRuntimeGuild(req.params.guildId);
+    const modules = Object.fromEntries([...supportedModules].map((id) => [id, stored.modules[id] !== false]));
+    res.json({
+      guildId: req.params.guildId, modules,
+      automod: stored.automod, levels: stored.levels,
+      welcome: stored.welcome ?? { enabled: false, channelId: "", message: "Добро пожаловать, {user}, на сервер {server}!" },
+      leave: stored.leave ?? { enabled: false, channelId: "", message: "{user} покинул сервер." },
+      customCommands: stored.customCommands,
+      announcementChannelId: stored.announcementChannelId ?? "",
+    });
   });
 
   app.put("/api/guilds/:guildId/settings", async (req, res) => {
     if (!(await authorizeGuildSettings(req, res))) return;
-    const requested = req.body?.modules;
-    if (!requested || typeof requested !== "object" || Array.isArray(requested)) {
-      return res.status(400).json({ error: "Expected a modules object" });
+    const state = getRuntimeGuild(req.params.guildId);
+    const body = req.body ?? {};
+    if (body.modules !== undefined) {
+      if (!body.modules || typeof body.modules !== "object" || Array.isArray(body.modules)) return res.status(400).json({ error: "Expected a modules object" });
+      for (const [id, enabled] of Object.entries(body.modules)) {
+        if (!supportedModules.has(id) || typeof enabled !== "boolean") return res.status(400).json({ error: `Invalid module setting: ${id}` });
+        state.modules[id] = enabled;
+      }
     }
-    const entries = Object.entries(requested);
-    const invalid = entries.find(([id, enabled]) => !supportedModules.has(id) || typeof enabled !== "boolean");
-    if (invalid) return res.status(400).json({ error: `Invalid module setting: ${invalid[0]}` });
-    const current = getRuntimeGuild(req.params.guildId).modules;
-    for (const [id, enabled] of entries) current[id] = enabled as boolean;
-    const modules = Object.fromEntries([...supportedModules].map((id) => [id, current[id] !== false]));
-    res.json({ guildId: req.params.guildId, modules });
+    if (body.automod !== undefined) {
+      const a = body.automod;
+      if (!a || typeof a !== "object" || !["antiSpam","antiInvite","antiCaps"].every(k => a[k] === undefined || typeof a[k] === "boolean") ||
+          (a.badWords !== undefined && (!Array.isArray(a.badWords) || a.badWords.length > 100 || a.badWords.some((w: unknown) => typeof w !== "string" || w.length > 80))) ||
+          (a.spamLimit !== undefined && (!Number.isInteger(a.spamLimit) || a.spamLimit < 2 || a.spamLimit > 20)) ||
+          (a.spamWindowMs !== undefined && (!Number.isInteger(a.spamWindowMs) || a.spamWindowMs < 1000 || a.spamWindowMs > 30000)) ||
+          (a.timeoutMs !== undefined && (!Number.isInteger(a.timeoutMs) || a.timeoutMs < 0 || a.timeoutMs > 2419200000))) return res.status(400).json({ error: "Invalid automod settings" });
+      state.automod = { ...state.automod, ...a, badWords: a.badWords?.map((w: string) => w.trim().toLowerCase()).filter(Boolean) ?? state.automod.badWords };
+    }
+    if (body.levels !== undefined) {
+      const l = body.levels;
+      if (!l || typeof l !== "object" ||
+          (l.xpPerMessage !== undefined && (!Number.isInteger(l.xpPerMessage) || l.xpPerMessage < 1 || l.xpPerMessage > 1000)) ||
+          (l.cooldownSeconds !== undefined && (!Number.isInteger(l.cooldownSeconds) || l.cooldownSeconds < 5 || l.cooldownSeconds > 3600)) ||
+          (l.xpMultiplier !== undefined && (!Number.isInteger(l.xpMultiplier) || l.xpMultiplier < 10 || l.xpMultiplier > 10000)) ||
+          (l.levelUpMessage !== undefined && (typeof l.levelUpMessage !== "string" || l.levelUpMessage.length > 500))) return res.status(400).json({ error: "Invalid levels settings" });
+      state.levels = { ...state.levels, ...l };
+    }
+    for (const key of ["welcome", "leave"] as const) {
+      if (body[key] === undefined) continue;
+      const value = body[key];
+      if (!value || typeof value !== "object" || typeof value.enabled !== "boolean" ||
+          (value.channelId !== undefined && typeof value.channelId !== "string") ||
+          (value.message !== undefined && (typeof value.message !== "string" || value.message.length > 1800))) return res.status(400).json({ error: `Invalid ${key} settings` });
+      state[key] = { ...state[key], ...value };
+    }
+    if (body.customCommands !== undefined) {
+      const commands = body.customCommands;
+      if (!commands || typeof commands !== "object" || Array.isArray(commands) || Object.keys(commands).length > 100 ||
+          Object.entries(commands).some(([name, value]) => !/^[a-z0-9_-]{1,32}$/.test(name) || typeof value !== "string" || !value.trim() || value.length > 1800)) return res.status(400).json({ error: "Invalid custom commands" });
+      state.customCommands = commands;
+    }
+    if (body.announcementChannelId !== undefined) {
+      if (typeof body.announcementChannelId !== "string" || body.announcementChannelId.length > 25) return res.status(400).json({ error: "Invalid announcement channel" });
+      state.announcementChannelId = body.announcementChannelId;
+    }
+    const modules = Object.fromEntries([...supportedModules].map((id) => [id, state.modules[id] !== false]));
+    res.json({ guildId: req.params.guildId, modules, automod: state.automod, levels: state.levels, welcome: state.welcome, leave: state.leave, customCommands: state.customCommands, announcementChannelId: state.announcementChannelId ?? "" });
   });
 
   startBot().catch((error) => {
