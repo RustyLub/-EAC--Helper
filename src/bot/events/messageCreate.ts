@@ -1,6 +1,5 @@
 import { Events, Message, PermissionFlagsBits } from 'discord.js';
-import { db } from '../firebase';
-import { FieldValue } from 'firebase-admin/firestore';
+import { getRuntimeGuild } from '../utils/runtime';
 
 export const name = Events.MessageCreate;
 export const once = false;
@@ -67,16 +66,8 @@ export async function execute(message: Message) {
   };
 
   try {
-    const guildRef = db.collection('guilds').doc(guildId);
-    const guildDoc = await guildRef.get();
-    const guildData = guildDoc.exists ? guildDoc.data() ?? {} : {};
-    // Automod is opt-in: an unconfigured server must not have messages deleted unexpectedly.
-    const automod = guildData.automod ?? {
-      antiSpam: false,
-      antiInvite: false,
-      antiCaps: false,
-      badWords: [],
-    };
+    const guildData = getRuntimeGuild(guildId);
+    const automod = guildData.automod;
 
     if (!bypass && automod.antiInvite === true && /(?:discord\.gg\/|discord(?:app)?\.com\/invite\/)[\w-]+/i.test(content)) {
       await message.delete().catch(() => null);
@@ -127,31 +118,18 @@ export async function execute(message: Message) {
 
     const lastXpAt = xpCooldowns.get(memberKey) ?? 0;
     if (now - lastXpAt < XP_COOLDOWN_MS) return;
-    const userRef = guildRef.collection('users').doc(userId);
-    const levelUp = await db.runTransaction(async transaction => {
-      const userDoc = await transaction.get(userRef);
-      const storedXp = userDoc.exists ? userDoc.data()?.xp : 0;
-      const currentXp = typeof storedXp === 'number' && Number.isFinite(storedXp) ? Math.max(0, storedXp) : 0;
-      const oldLevel = Math.floor(Math.sqrt(currentXp / XP_MULTIPLIER));
-      const newXp = currentXp + XP_PER_MESSAGE;
-      const newLevel = Math.floor(Math.sqrt(newXp / XP_MULTIPLIER));
-
-      transaction.set(userRef, {
-        username: message.author.username,
-        xp: FieldValue.increment(XP_PER_MESSAGE),
-        updatedAt: FieldValue.serverTimestamp(),
-        ...(userDoc.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),
-      }, { merge: true });
-
-      return newLevel > oldLevel ? newLevel : null;
-    });
-
+    const user = guildData.users[userId] ?? { username: message.author.username, xp: 0 };
+    const oldLevel = Math.floor(Math.sqrt(user.xp / XP_MULTIPLIER));
+    user.username = message.author.username;
+    user.xp += XP_PER_MESSAGE;
+    guildData.users[userId] = user;
+    const newLevel = Math.floor(Math.sqrt(user.xp / XP_MULTIPLIER));
     xpCooldowns.set(memberKey, now);
 
-    if (levelUp !== null) {
+    if (newLevel > oldLevel) {
       await sendNotice(guildData.language === 'en'
-        ? `Congratulations ${message.author}! You've reached level **${levelUp}**!`
-        : `Поздравляем, ${message.author}! Вы достигли **${levelUp}** уровня!`);
+        ? `Congratulations ${message.author}! You've reached level **${newLevel}**!`
+        : `Поздравляем, ${message.author}! Вы достигли **${newLevel}** уровня!`);
     }
   } catch (error) {
     console.error('[Bot] Ошибка в обработчике messageCreate:', error);
