@@ -3,7 +3,7 @@ services:
     name: eac-helper
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    buildCommand: npm install --include=dev && npm run build && npm test
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
@@ -14,15 +14,9 @@ services:
         value: production
       - key: APP_URL
         sync: false
-      - key: FRONTEND_URL
-        value: https://rustylub.github.io
       - key: CLIENT_ID
         sync: false
       - key: CLIENT_SECRET
         sync: false
       - key: DISCORD_TOKEN
-        sync: false
-      - key: FIREBASE_PROJECT_ID
-        sync: false
-      - key: FIREBASE_SERVICE_ACCOUNT
         sync: false

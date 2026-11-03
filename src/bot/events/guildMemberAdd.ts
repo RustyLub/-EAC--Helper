@@ -1,5 +1,5 @@
 import { Events, GuildMember, EmbedBuilder } from 'discord.js';
-import { db } from '../firebase';
+import { getRuntimeGuild } from '../utils/runtime';
 
 export const name = Events.GuildMemberAdd;
 export const once = false;
@@ -8,20 +8,17 @@ export async function execute(member: GuildMember) {
   if (!member.guild) return;
 
   try {
-    const guildId = member.guild.id;
-    const guildDoc = await db.collection('guilds').doc(guildId).get();
-    
-    if (!guildDoc.exists) return;
-    
-    const data = guildDoc.data();
-    if (!data?.welcome?.enabled || !data?.welcome?.channelId) return;
+    const guildData = getRuntimeGuild(member.guild.id);
+    if (guildData.modules.welcome === false) return;
+    const data = guildData.welcome;
+    if (!data?.enabled || !data?.channelId) return;
 
-    const fetchedChannel = await member.guild.channels.fetch(data.welcome.channelId).catch(() => null);
+    const fetchedChannel = await member.guild.channels.fetch(data.channelId).catch(() => null);
     if (!fetchedChannel?.isSendable()) return;
     const botMember = await member.guild.members.fetchMe().catch(() => null);
     if (!botMember?.permissionsIn(fetchedChannel).has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) return;
 
-    let message = data.welcome.message || "Привет, {user}! Добро пожаловать на сервер **{server}**. Ты наш {membercount} участник!";
+    let message = data.message || "Привет, {user}! Добро пожаловать на сервер **{server}**. Ты наш {membercount} участник!";
     
     // Replace variables
     message = message

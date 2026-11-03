@@ -3,6 +3,7 @@ import path from "path";
 import { randomBytes } from "crypto";
 import { createServer as createViteServer } from "vite";
 import { startBot } from "./src/bot/index";
+import { getRuntimeGuild } from "./src/bot/utils/runtime";
 import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
 
@@ -11,16 +12,25 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
+  app.disable("x-powered-by");
   const PORT = Number(process.env.PORT) || 3000;
   const isProduction = process.env.NODE_ENV === "production";
-  const frontendOrigin = (process.env.FRONTEND_URL || "https://rustylub.github.io").replace(/\/$/, "");
+  if (isProduction) {
+    const missing = ["DISCORD_TOKEN", "CLIENT_ID", "CLIENT_SECRET", "APP_URL"].filter((key) => !process.env[key]?.trim());
+    if (missing.length) throw new Error("Missing required production environment variables: " + missing.join(", "));
+    if (process.env.DISCORD_TOKEN === "YOUR_DISCORD_BOT_TOKEN" || process.env.CLIENT_SECRET === "YOUR_DISCORD_OAUTH_CLIENT_SECRET" || !/^\d{17,20}$/.test(process.env.CLIENT_ID!)) {
+      throw new Error("DISCORD_TOKEN or CLIENT_ID is invalid. Check the Render environment settings.");
+    }
+    if (new URL(process.env.APP_URL!).protocol !== "https:") throw new Error("APP_URL must use HTTPS in production.");
+  }
+  const frontendOrigin = new URL(process.env.APP_URL || `http://localhost:${PORT}`).origin;
   const cookieOptions = {
     httpOnly: true,
     secure: isProduction,
-    sameSite: (isProduction ? "none" : "lax") as "none" | "lax",
+    sameSite: "lax" as const,
   };
 
-  // GitHub Pages and the Render API are on different origins.
+  // The frontend and API are served from the same origin; CORS is only enabled for an explicitly configured frontend origin.
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (origin === frontendOrigin || (!isProduction && origin === "http://localhost:5173")) {
@@ -34,6 +44,10 @@ async function startServer() {
     next();
   });
 
+  app.use("/api", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    next();
+  });
   app.set("trust proxy", 1);
   app.use(cookieParser());
   app.use(express.json());
@@ -57,6 +71,7 @@ async function startServer() {
     const response = await fetch("https://discord.com/api/users/@me/guilds", {
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (response.status === 401) return null;
     if (!response.ok) return false;
 
     const guilds = await response.json() as Array<{ id: string; permissions: string }>;
@@ -193,7 +208,10 @@ async function startServer() {
       const response = await fetch("https://discord.com/api/users/@me/guilds", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) return res.status(response.status).json({ error: "Failed to fetch guilds" });
+      if (!response.ok) {
+        if (response.status === 401) res.clearCookie("discord_token", cookieOptions);
+        return res.status(response.status).json({ error: "Failed to fetch guilds" });
+      }
 
       const guilds = await response.json() as Array<{ permissions: string }>;
       const manageableGuilds = guilds.filter((guild) => {
@@ -212,9 +230,12 @@ async function startServer() {
 
     const guildId = req.params.guildId;
     try {
-      if (!(await userCanManageGuild(userToken, guildId))) {
-        return res.status(403).json({ error: "You do not have permission to manage this server" });
+      const allowed = await userCanManageGuild(userToken, guildId);
+      if (allowed === null) {
+        res.clearCookie("discord_token", cookieOptions);
+        return res.status(401).json({ error: "Discord session expired" });
       }
+      if (!allowed) return res.status(403).json({ error: "You do not have permission to manage this server" });
 
       const botToken = process.env.DISCORD_TOKEN;
       if (!botToken) return res.status(500).json({ error: "Bot token not configured" });
@@ -233,8 +254,7 @@ async function startServer() {
   app.get("/api/guilds/:guildId/roles", guildResourceHandler("roles"));
 
   const supportedModules = new Set([
-    "moderation", "automod", "action-log", "welcome", "tickets",
-    "levels", "custom-commands", "announcements",
+    "moderation", "automod", "welcome", "levels", "custom-commands", "announcements",
   ]);
 
   const authorizeGuildSettings = async (req: express.Request, res: express.Response) => {
@@ -245,6 +265,11 @@ async function startServer() {
     }
     try {
       const allowed = await userCanManageGuild(token, req.params.guildId);
+      if (allowed === null) {
+        res.clearCookie("discord_token", cookieOptions);
+        res.status(401).json({ error: "Discord session expired" });
+        return false;
+      }
       if (!allowed) {
         res.status(403).json({ error: "You do not have permission to manage this server" });
         return false;
@@ -256,21 +281,12 @@ async function startServer() {
     }
   };
 
+  // Web-panel settings share the bot runtime state and remain memory-only.
   app.get("/api/guilds/:guildId/settings", async (req, res) => {
     if (!(await authorizeGuildSettings(req, res))) return;
-    try {
-      const { db } = await import("./src/bot/firebase");
-      const snapshot = await db.collection("guildSettings").doc(req.params.guildId).get();
-      const data = snapshot.exists ? snapshot.data() : undefined;
-      const storedModules = data?.modules && typeof data.modules === "object" ? data.modules : {};
-      const modules = Object.fromEntries(
-        [...supportedModules].map((id) => [id, storedModules[id] === true]),
-      );
-      res.json({ guildId: req.params.guildId, modules });
-    } catch (error) {
-      console.error("Failed to load guild settings:", error);
-      res.status(503).json({ error: "Settings storage is unavailable. Check Firebase Admin credentials." });
-    }
+    const stored = getRuntimeGuild(req.params.guildId).modules;
+    const modules = Object.fromEntries([...supportedModules].map((id) => [id, stored[id] !== false]));
+    res.json({ guildId: req.params.guildId, modules });
   });
 
   app.put("/api/guilds/:guildId/settings", async (req, res) => {
@@ -279,31 +295,19 @@ async function startServer() {
     if (!requested || typeof requested !== "object" || Array.isArray(requested)) {
       return res.status(400).json({ error: "Expected a modules object" });
     }
-
-    const updates: Record<string, boolean> = {};
-    for (const [id, enabled] of Object.entries(requested)) {
-      if (!supportedModules.has(id) || typeof enabled !== "boolean") {
-        return res.status(400).json({ error: `Invalid module setting: ${id}` });
-      }
-      updates[id] = enabled;
-    }
-
-    try {
-      const { db } = await import("./src/bot/firebase");
-      const ref = db.collection("guildSettings").doc(req.params.guildId);
-      await ref.set({
-        modules: updates,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
-      const snapshot = await ref.get();
-      res.json({ guildId: req.params.guildId, modules: snapshot.data()?.modules ?? {} });
-    } catch (error) {
-      console.error("Failed to save guild settings:", error);
-      res.status(503).json({ error: "Settings storage is unavailable. Check Firebase Admin credentials." });
-    }
+    const entries = Object.entries(requested);
+    const invalid = entries.find(([id, enabled]) => !supportedModules.has(id) || typeof enabled !== "boolean");
+    if (invalid) return res.status(400).json({ error: `Invalid module setting: ${invalid[0]}` });
+    const current = getRuntimeGuild(req.params.guildId).modules;
+    for (const [id, enabled] of entries) current[id] = enabled as boolean;
+    const modules = Object.fromEntries([...supportedModules].map((id) => [id, current[id] !== false]));
+    res.json({ guildId: req.params.guildId, modules });
   });
 
-  startBot().catch((error) => console.error("Discord bot failed to start:", error));
+  startBot().catch((error) => {
+    console.error("Discord bot failed to start:", error);
+    if (isProduction) process.exit(1);
+  });
 
   if (!isProduction) {
     const vite = await createViteServer({

@@ -2,6 +2,7 @@ import * as banCommand from './commands/moderation/ban';
 import * as kickCommand from './commands/moderation/kick';
 import * as muteCommand from './commands/moderation/mute';
 import * as warnCommand from './commands/moderation/warn';
+import * as warningsCommand from './commands/moderation/warnings';
 import * as clearCommand from './commands/moderation/clear';
 import * as newsCommand from './commands/news/news';
 import * as rankCommand from './commands/economy/rank';
@@ -11,12 +12,15 @@ import * as automodCommand from './commands/utility/automod';
 import * as helpCommand from './commands/utility/help';
 import * as greetingsCommand from './commands/utility/greetings';
 import * as customCommand from './commands/utility/customcommand';
+import * as menuCommand from './commands/utility/menu';
+import * as settingsCommand from './commands/utility/settings';
 
 export const commands = [
   banCommand,
   kickCommand,
   muteCommand,
   warnCommand,
+  warningsCommand,
   clearCommand,
   newsCommand,
   rankCommand,
@@ -25,7 +29,9 @@ export const commands = [
   automodCommand,
   helpCommand,
   greetingsCommand,
-  customCommand
+  customCommand,
+  menuCommand,
+  settingsCommand
 ];
 
 import * as readyEvent from './events/ready';

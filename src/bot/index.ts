@@ -50,7 +50,12 @@ export async function startBot() {
     }
   }
 
-  await deployCommands();
+  try {
+    await deployCommands();
+  } catch (error) {
+    // Command registration errors should be visible, but must not prevent the gateway client from starting.
+    console.error('[Bot] Slash-command registration failed; continuing with the existing commands:', error);
+  }
 
   try {
     await client.login(token);

@@ -1,8 +1,7 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { getGuildLanguage, translations } from '../../utils/lang';
-import { db } from '../../firebase';
-import { FieldValue } from 'firebase-admin/firestore';
 import { resolveModerationTarget, safeReason } from '../../utils/moderation';
+import { getRuntimeGuild } from '../../utils/runtime';
 
 export const data = new SlashCommandBuilder()
   .setName('warn')
@@ -34,22 +33,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return;
   }
 
-  try {
-    const userRef = db.collection('guilds').doc(interaction.guildId).collection('users').doc(target.id);
-    await userRef.set({
-      warnings: FieldValue.arrayUnion({
-        reason,
-        createdAt: new Date().toISOString(),
-        moderatorId: interaction.user.id,
-        moderatorTag: interaction.user.tag,
-      }),
-      username: target.username,
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    await interaction.reply({ content: t.warned(target.tag, reason) });
-  } catch (error) {
-    console.error('[Command:warn] Failed to save warning:', error);
-    await interaction.reply({ content: t.noPermission, ephemeral: true });
-  }
+  const guild = getRuntimeGuild(interaction.guildId);
+  const warnings = guild.warnings[target.id] ?? [];
+  warnings.push({
+    reason,
+    createdAt: new Date().toISOString(),
+    moderatorId: interaction.user.id,
+    moderatorTag: interaction.user.tag,
+  });
+  guild.warnings[target.id] = warnings.slice(-100);
+  await interaction.reply({ content: t.warned(target.tag, reason) });
 }

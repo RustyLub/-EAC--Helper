@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Activity, ArrowLeft, Bot, ChevronRight, CircleHelp, Command, FileText,
+  Activity, ArrowLeft, Bot, ChevronRight, CircleHelp, Command,
   Filter, LogOut, MessageSquare, Plus, RefreshCw, Search, Server, Shield,
-  ShieldCheck, SlidersHorizontal, Ticket, Users, X,
+  ShieldCheck, SlidersHorizontal, Users,
 } from "lucide-react";
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "https://eac-helper.onrender.com").replace(/\/$/, "");
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
 async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   try {
@@ -20,7 +20,7 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
   } catch (error) {
     const details = error instanceof Error ? error.message : "Unknown network error";
     throw new Error(
-      `Не удалось связаться с API (${API_BASE}). Проверь, что Render-сервис запущен, адрес API указан верно, а CORS разрешает ${window.location.origin}. Подробности браузера: ${details}`,
+      `Не удалось связаться с API (${API_BASE || window.location.origin}). Проверь, что сервер запущен и доступен. Подробности браузера: ${details}`,
     );
   }
 }
@@ -42,18 +42,17 @@ type ModuleItem = {
   description: string;
   category: string;
   icon: typeof Shield;
-  status: "planned" | "foundation";
+  commands: string;
+  status: "available";
 };
 
 const modules: ModuleItem[] = [
-  { id: "moderation", name: "Модерация", description: "Баны, кики, муты, предупреждения и история наказаний.", category: "Безопасность", icon: Shield, status: "planned" },
-  { id: "automod", name: "Автомодерация", description: "Фильтр спама, ссылок, запрещённых слов и рейд-защита.", category: "Безопасность", icon: Filter, status: "planned" },
-  { id: "action-log", name: "Журнал действий", description: "Логи модерации, сообщений, участников и изменений сервера.", category: "Безопасность", icon: FileText, status: "planned" },
-  { id: "welcome", name: "Приветствия", description: "Сообщения при входе и выходе участников.", category: "Сообщество", icon: Users, status: "planned" },
-  { id: "tickets", name: "Тикеты", description: "Обращения пользователей в отдельных приватных каналах.", category: "Сообщество", icon: Ticket, status: "planned" },
-  { id: "levels", name: "Уровни", description: "Опыт, уровни и таблица активности участников.", category: "Сообщество", icon: Activity, status: "planned" },
-  { id: "custom-commands", name: "Команды", description: "Пользовательские команды и ответы бота.", category: "Инструменты", icon: Command, status: "planned" },
-  { id: "announcements", name: "Оповещения", description: "Публикация объявлений и автоматических сообщений.", category: "Инструменты", icon: MessageSquare, status: "planned" },
+  { id: "moderation", name: "Модерация", description: "Баны, кики, муты, предупреждения и очистка сообщений.", commands: "Команды: /ban, /kick, /mute, /warn, /warnings, /clear.", category: "Безопасность", icon: Shield, status: "available" },
+  { id: "automod", name: "Автомодерация", description: "Антиспам, блокировка Discord-приглашений, капса и запрещённых слов.", commands: "Включи нужные фильтры и список слов командой /automod.", category: "Безопасность", icon: Filter, status: "available" },
+  { id: "welcome", name: "Приветствия", description: "Сообщения при входе и выходе участников.", commands: "Выбери канал и текст командой /greetings.", category: "Сообщество", icon: Users, status: "available" },
+  { id: "levels", name: "Уровни", description: "Опыт за сообщения, уровни и таблица лидеров.", commands: "Проверка: /rank. Таблица: /leaderboard.", category: "Сообщество", icon: Activity, status: "available" },
+  { id: "custom-commands", name: "Пользовательские команды", description: "Собственные текстовые ответы бота на команды с префиксом !.", commands: "Создание и управление: /customcommand.", category: "Инструменты", icon: Command, status: "available" },
+  { id: "announcements", name: "Оповещения", description: "Публикация новостей в выбранный канал сервера.", commands: "Публикация: /news.", category: "Инструменты", icon: MessageSquare, status: "available" },
 ];
 
 function initials(name: string) {
@@ -89,7 +88,15 @@ export default function App() {
       const userData = await userResponse.json() as DiscordUser;
       setUser(userData);
       const guildResponse = await apiFetch("/api/guilds");
-      if (!guildResponse.ok) throw new Error(`Не удалось загрузить список серверов Discord (HTTP ${guildResponse.status}).`);
+      if (!guildResponse.ok) {
+        if (guildResponse.status === 401) {
+          setUser(null);
+          setGuilds([]);
+          setSelectedGuild(null);
+          return;
+        }
+        throw new Error(`Не удалось загрузить список серверов Discord (HTTP ${guildResponse.status}).`);
+      }
       const guildData = await guildResponse.json() as Guild[];
       setGuilds(guildData);
     } catch (e) {
@@ -102,7 +109,7 @@ export default function App() {
   useEffect(() => {
     void loadSession();
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== new URL(API_BASE).origin || !event.source || event.source === window) return;
+      if (event.origin !== new URL(API_BASE || window.location.origin, window.location.origin).origin || !event.source || event.source === window) return;
       if (event.data?.type === "OAUTH_AUTH_SUCCESS") void loadSession();
     };
     window.addEventListener("message", onMessage);
@@ -150,9 +157,17 @@ export default function App() {
     setError("");
     try {
       const response = await apiFetch(`/api/guilds/${encodeURIComponent(guildId)}/settings`);
-      if (!response.ok) throw new Error(response.status === 503
-        ? "Хранилище настроек недоступно. Проверь Firebase Admin."
-        : `Не удалось загрузить настройки сервера (HTTP ${response.status}).`);
+      if (!response.ok) {
+        if (response.status === 401) {
+          setUser(null);
+          setSelectedGuild(null);
+          setActiveModule(null);
+          return;
+        }
+        throw new Error(response.status === 503
+          ? "Не удалось получить настройки панели."
+          : `Не удалось загрузить настройки сервера (HTTP ${response.status}).`);
+      }
       const data = await response.json() as { modules?: Record<string, boolean> };
       setModuleEnabled(data.modules || {});
     } catch (e) {
@@ -162,7 +177,7 @@ export default function App() {
 
   const toggleModule = async (moduleId: string, enabled: boolean) => {
     if (!selectedGuild || savingModule) return;
-    const previous = moduleEnabled[moduleId] === true;
+    const previous = moduleEnabled[moduleId] !== false;
     setModuleEnabled((current) => ({ ...current, [moduleId]: enabled }));
     setSavingModule(true);
     setError("");
@@ -174,6 +189,12 @@ export default function App() {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({})) as { error?: string };
+        if (response.status === 401) {
+          setUser(null);
+          setGuilds([]);
+          setSelectedGuild(null);
+          setActiveModule(null);
+        }
         throw new Error(data.error || `Не удалось сохранить настройку (HTTP ${response.status}).`);
       }
       const data = await response.json() as { modules?: Record<string, boolean> };
@@ -271,7 +292,7 @@ export default function App() {
             <>
               <button className="back-link" onClick={() => setActiveModule(null)}><ArrowLeft size={16} /> Все модули</button>
               <div className="module-heading"><span className="module-icon"><activeModule.icon size={23} /></span><div><div className="page-kicker">{activeModule.category}</div><h1>{activeModule.name}</h1></div></div>
-              <section className="work-panel"><div className="work-panel-icon"><Activity size={24} /></div><h2>Настройки модуля</h2><p>Состояние модуля сохраняется отдельно для этого Discord-сервера в Firebase.</p><div className="module-setting-row"><div><b>{activeModule.name}</b><small>{moduleEnabled[activeModule.id] ? "Модуль включён" : "Модуль выключен"}</small></div><button className={`toggle ${moduleEnabled[activeModule.id] ? "toggle-on" : ""}`} role="switch" aria-checked={moduleEnabled[activeModule.id] === true} disabled={savingModule} onClick={() => void toggleModule(activeModule.id, !moduleEnabled[activeModule.id])}><span /></button></div>{savingModule && <small className="save-state">Сохранение…</small>}{error && <div className="notice notice-error">{error}</div>}<span className="status-pill">Настройка сохраняется на сервере</span></section>
+              <section className="work-panel"><div className="work-panel-icon"><Activity size={24} /></div><h2>Настройки модуля</h2><p>{activeModule.description}</p><p>{activeModule.commands}</p><div className="module-setting-row"><div><b>{activeModule.name}</b><small>{moduleEnabled[activeModule.id] === false ? "Модуль выключен" : "Модуль включён"}</small></div><button className={`toggle ${moduleEnabled[activeModule.id] !== false ? "toggle-on" : ""}`} role="switch" aria-checked={moduleEnabled[activeModule.id] !== false} disabled={savingModule} onClick={() => void toggleModule(activeModule.id, moduleEnabled[activeModule.id] === false)}><span /></button></div>{savingModule && <small className="save-state">Сохранение…</small>}{error && <div className="notice notice-error">{error}</div>}<span className="status-pill">Настройка действует до перезапуска</span></section>
             </>
           ) : (
             <>
@@ -281,12 +302,12 @@ export default function App() {
                 {filteredModules.map((item) => {
                   const Icon = item.icon;
                   return <button className="module-card" key={item.id} onClick={() => setActiveModule(item)}>
-                    <div className="module-card-top"><span className="module-icon"><Icon size={21} /></span><span className="status-pill">В разработке</span></div>
+                    <div className="module-card-top"><span className="module-icon"><Icon size={21} /></span><span className="status-pill">{moduleEnabled[item.id] === false ? "Выключен" : "Включён"}</span></div>
                     <b>{item.name}</b><p>{item.description}</p><span className="module-open">Открыть <ChevronRight size={15} /></span>
                   </button>;
                 })}
               </div>
-              <div className="foundation-note"><Plus size={16} /><span><b>Это чистая основа панели.</b> Здесь не отображаются фиктивные переключатели: модуль появится как рабочий только после подключения его серверной логики.</span></div>
+              <div className="foundation-note"><Plus size={16} /><span><b>Настройки хранятся только в оперативной памяти.</b> После перезапуска процесса все модули снова включаются по умолчанию.</span></div>
             </>
           )}
         </main>

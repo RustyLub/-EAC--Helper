@@ -25,7 +25,7 @@ if errorlevel 1 (
 )
 echo.
 echo Устанавливаю зависимости...
-call npm ci
+call npm install
 if errorlevel 1 (
   echo Не удалось установить зависимости.
   pause
@@ -44,7 +44,7 @@ if not exist ".env" (
 )
 echo.
 echo Установка завершена.
-echo Сейчас откроется .env. Заполни Discord и Firebase настройки.
+echo Сейчас откроется .env. Заполни настройки Discord OAuth и адрес приложения.
 start "" notepad.exe ".env"
 echo После сохранения запусти Start.bat.
 pause

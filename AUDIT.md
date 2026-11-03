@@ -1,59 +1,44 @@
 # EAC Helper — технический аудит
 
-Дата аудита: 2026-11-02
+Обновлено: 2026-11-03
+Рабочая ветка: `feature/components-v2-dashboard`
 
-## Краткий вывод
+## Архитектура
 
-Проект собирает React/Vite frontend и Express/Discord backend в одном Node.js сервисе. GitHub Pages может раздавать только статический frontend и не может запускать Express API или Discord gateway-клиент. Текущая схема с frontend на GitHub Pages и API на другом домене также зависит от доступности third-party cookies в браузере.
+- React + Vite frontend.
+- Express API и Discord Gateway запускаются в одном Node.js процессе.
+- Discord OAuth2 используется для входа в веб-панель.
+- Состояние серверов хранится в Map в оперативной памяти процесса.
+- Firebase, Firestore и файловое хранилище настроек не используются.
+- Перезапуск или redeploy очищает язык, automod, приветствия, пользовательские команды, XP и переключатели модулей.
 
-## Обнаруженные проблемы
+## Исправленные проблемы в текущей ветке
 
-### Развёртывание и сеть
-- GitHub Pages получает публикации из двух workflow: собственного Vite workflow и автоматического workflow публикации из branch source. Источник GitHub Pages необходимо переключить на GitHub Actions в Settings → Pages.
-- Frontend использует Render API URL по умолчанию. Успешная сборка Pages не подтверждает, что Render-сервис создан, доступен и настроен.
-- OAuth cookie выставляется как cross-site cookie (SameSite=None; Secure). Браузеры с блокировкой сторонних cookies могут не отправлять её при запросах с GitHub Pages на Render. Надёжный вариант — отдавать frontend и API с одного Render origin.
-- Render Blueprint требует секреты Discord и Firebase. Наличие render.yaml само по себе не создаёт и не конфигурирует сервис.
+- Production start теперь запускает `server.ts`, а не только Discord-бота.
+- Production build теперь выполняет TypeScript-проверку backend и Vite build frontend в `dist/`.
+- Render build больше не использует `npm ci`, так как в репозитории нет package-lock.json.
+- Веб-панель и API обслуживаются с одного origin; API URL больше не зашит на старый Render hostname.
+- OAuth cookie использует Secure в production и SameSite=Lax для same-origin сценария.
+- Firebase variables и зависимости удалены из deployment-конфигурации, шаблона локальной настройки и package.json.
+- Последнее оставшееся Firestore-хранилище предупреждений заменено ограниченным in-memory списком; добавлена команда `/warnings`.
+- Переключатели веб-панели теперь меняют общую RuntimeGuild state и реально влияют на модерацию, автомодерацию, приветствия, XP, пользовательские команды и объявления.
+- Нереализованные карточки action-log и tickets удалены из списка доступных модулей.
+- Изменение нескольких настроек валидируется до записи, а API возвращает полный эффективный набор флагов.
+- Discord Components V2 сохраняет интерактивную навигацию и обновляет исходное сообщение.
 
-### Discord bot
-- Не был включён GuildMembers Gateway Intent, хотя проект подписан на события входа и выхода участников. Исправлено в src/bot/index.ts.
-- Discord REST-клиент для публикации slash-команд создавался при импорте модуля. Исправлено: клиент создаётся после проверки токенов.
-- Ошибка публикации slash-команд не должна останавливать подключение самого бота. Исправлено: регистрация и login разделены.
-- Обработчики ban/kick/mute искали участника только в cache. Это давало ложное «пользователь не найден», если участника не было в кеше. Исправлено: участник запрашивается через Discord API.
-- Для mute добавлены допустимые границы длительности: 0–40320 минут (до 28 дней).
-- messageCreate.ts содержит @ts-nocheck; требуется отдельная типизация и тесты автомодерации.
-- Welcome/leave handlers зависят от Firestore и кеша каналов; требуется проверить наличие канала, права бота и поведение при недоступности Firebase.
+## Остаточные риски и ограничения
 
-### Firebase и согласованность настроек
-- Веб-панель сохраняет модульные флаги в guildSettings/{guildId}.
-- Обработчики бота читают язык, automod, welcome/leave, custom commands и XP из guilds/{guildId}.
-- Следовательно, переключатели веб-панели сейчас не включают реальные функции бота. Нужно свести настройки к одной схеме Firestore и подключить каждый модуль к ней.
-- Firebase Admin использует service-account JSON в FIREBASE_SERVICE_ACCOUNT; формат и права сервисного аккаунта должны быть проверены на реальном Render deployment.
+- Данные намеренно не переживают перезапуск. На Render free возможны остановки/перезапуски процесса, после которых настройки и XP сбрасываются.
+- Для автоматического XP требуется включённый Message Content Intent в Discord Developer Portal.
+- Для приветствий и сообщений об уходе требуется Server Members Intent.
+- Настройки канала/текста для приветствий и фильтры automod задаются slash-командами `/greetings` и `/automod`; веб-панель включает/отключает сами модули.
+- GitHub Actions проверяет TypeScript Discord-бота, Express-сервер и frontend, собирает Vite и запускает тесты изоляции/сброса RuntimeGuild на Ubuntu и Windows.
+- Реальный Discord OAuth2, Discord Gateway, права бота и доступность каналов нельзя полностью проверить без секретов владельца и тестового Discord-сервера.
+- Production deployment на Render требует заполнения секретов владельцем приложения и проверки callback URL.
 
-### Веб-панель и UX
-- Список модулей содержит статусы «В разработке»; их нельзя считать реализованными функциями.
-- API сетевые ошибки ранее показывались как общая ошибка fetch. Добавлена диагностика с API URL и origin frontend.
-- Требуется добавить API health indicator, обработку истечения OAuth access token, повторную авторизацию и end-to-end тесты входа.
+## Обязательные настройки владельца
 
-### Команды и поддержка
-- Кнопка поддержки в help-меню ведёт на общий Discord invite, а не на сервер поддержки проекта.
-- Bug report сейчас отвечает заглушкой; нужно заменить реальным URL создания issue или реализовать форму.
-- Требуется проверить права и обработку ошибок для всех slash-команд, включая права бота на целевом канале.
-
-## Уже внесённые исправления в main
-- Безопасная инициализация Discord REST-клиента при наличии токенов.
-- Добавлен GuildMembers intent.
-- Ошибка регистрации slash-команд больше не должна мешать login бота.
-- ban/kick/mute загружают участника через Discord API.
-- Ограничена длительность mute.
-- Frontend показывает более подробную диагностику сетевых ошибок и HTTP-ответов.
-
-## Обязательные внешние действия
-1. В GitHub Settings → Pages установить Source = GitHub Actions.
-2. Создать Render Blueprint из render.yaml и заполнить секреты.
-3. Настроить Discord OAuth Redirect URI как https://<render-domain>/auth/callback.
-4. Включить Discord Server Members Intent и Message Content Intent в Developer Portal.
-5. Проверить, что frontend и API используют один origin, чтобы не зависеть от third-party cookies.
-6. Проверить Firebase service account и Firestore доступ.
-
-## Проверки
-GitHub Actions автоматически выполняет npm ci, npm run build и npm run lint. Результаты последних запусков следует считать окончательными только после завершения workflow. Реальный OAuth, Discord gateway и Firestore требуют интеграционного теста на развёрнутом сервисе.
+1. В Render задать `DISCORD_TOKEN`, `CLIENT_ID`, `CLIENT_SECRET` и `APP_URL`.
+2. В Discord OAuth2 Redirects добавить `<APP_URL>/auth/callback`.
+3. Включить Server Members Intent и Message Content Intent.
+4. Пригласить бота с scopes `bot` и `applications.commands` и необходимыми permission flags.
