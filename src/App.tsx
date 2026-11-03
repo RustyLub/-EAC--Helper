@@ -47,7 +47,7 @@ type ModuleItem = {
 };
 
 const modules: ModuleItem[] = [
-  { id: "moderation", name: "Модерация", description: "Баны, кики, муты, предупреждения и очистка сообщений.", commands: "Команды: /ban, /kick, /mute, /warn, /clear.", category: "Безопасность", icon: Shield, status: "available" },
+  { id: "moderation", name: "Модерация", description: "Баны, кики, муты, предупреждения и очистка сообщений.", commands: "Команды: /ban, /kick, /mute, /warn, /warnings, /clear.", category: "Безопасность", icon: Shield, status: "available" },
   { id: "automod", name: "Автомодерация", description: "Антиспам, блокировка Discord-приглашений, капса и запрещённых слов.", commands: "Включи нужные фильтры и список слов командой /automod.", category: "Безопасность", icon: Filter, status: "available" },
   { id: "welcome", name: "Приветствия", description: "Сообщения при входе и выходе участников.", commands: "Выбери канал и текст командой /greetings.", category: "Сообщество", icon: Users, status: "available" },
   { id: "levels", name: "Уровни", description: "Опыт за сообщения, уровни и таблица лидеров.", commands: "Проверка: /rank. Таблица: /leaderboard.", category: "Сообщество", icon: Activity, status: "available" },
