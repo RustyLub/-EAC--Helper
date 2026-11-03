@@ -8,7 +8,9 @@ export async function execute(member: GuildMember) {
   if (!member.guild) return;
 
   try {
-    const data = getRuntimeGuild(member.guild.id)[ 'leave' ];
+    const guildData = getRuntimeGuild(member.guild.id);
+    if (guildData.modules.welcome === false) return;
+    const data = guildData.leave;
     if (!data?.enabled || !data?.channelId) return;
 
     const fetchedChannel = await member.guild.channels.fetch(data.channelId).catch(() => null);
