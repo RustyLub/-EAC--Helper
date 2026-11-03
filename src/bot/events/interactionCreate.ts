@@ -1,6 +1,7 @@
 import { Events, Interaction } from 'discord.js';
 import { BotClient } from '../types';
 import { handleDashboardButton } from '../commands/utility/dashboard';
+import { getRuntimeGuild } from '../utils/runtime';
 
 export const name = Events.InteractionCreate;
 export const once = false;
@@ -35,6 +36,18 @@ export async function execute(interaction: Interaction) {
       if (!command) {
         await interaction.reply({ content: 'Эта команда больше не зарегистрирована. Обновите команды бота.', ephemeral: true });
         return;
+      }
+      if (interaction.inGuild() && interaction.guildId) {
+        const modules = getRuntimeGuild(interaction.guildId).modules;
+        const moderationCommands = ['ban', 'kick', 'mute', 'warn', 'clear'];
+        if (moderationCommands.includes(interaction.commandName) && modules.moderation === false) {
+          await interaction.reply({ content: 'Модуль модерации отключён в веб-панели.', ephemeral: true });
+          return;
+        }
+        if (interaction.commandName === 'news' && modules.announcements === false) {
+          await interaction.reply({ content: 'Модуль оповещений отключён в веб-панели.', ephemeral: true });
+          return;
+        }
       }
       await command.execute(interaction);
       return;
