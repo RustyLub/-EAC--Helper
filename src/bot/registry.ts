@@ -11,6 +11,8 @@ import * as automodCommand from './commands/utility/automod';
 import * as helpCommand from './commands/utility/help';
 import * as greetingsCommand from './commands/utility/greetings';
 import * as customCommand from './commands/utility/customcommand';
+import * as menuCommand from './commands/utility/menu';
+import * as settingsCommand from './commands/utility/settings';
 
 export const commands = [
   banCommand,
@@ -25,7 +27,9 @@ export const commands = [
   automodCommand,
   helpCommand,
   greetingsCommand,
-  customCommand
+  customCommand,
+  menuCommand,
+  settingsCommand
 ];
 
 import * as readyEvent from './events/ready';
