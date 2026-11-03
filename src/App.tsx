@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Activity, ArrowLeft, Bot, ChevronRight, CircleHelp, Command, FileText,
+  Activity, ArrowLeft, Bot, ChevronRight, CircleHelp, Command,
   Filter, LogOut, MessageSquare, Plus, RefreshCw, Search, Server, Shield,
-  ShieldCheck, SlidersHorizontal, Ticket, Users, X,
+  ShieldCheck, SlidersHorizontal, Users,
 } from "lucide-react";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
