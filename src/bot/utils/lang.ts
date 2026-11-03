@@ -1,15 +1,13 @@
-import { db } from '../firebase';
+import { getGuildSettings } from './storage';
 
 export async function getGuildLanguage(guildId: string): Promise<'ru' | 'en'> {
   try {
-    const doc = await db.collection('guilds').doc(guildId).get();
-    if (doc.exists) {
-      return doc.data()?.language === 'en' ? 'en' : 'ru';
-    }
-  } catch (err) {
-    console.error('Error fetching language:', err);
+    const settings = await getGuildSettings(guildId);
+    return settings.language === 'en' ? 'en' : 'ru';
+  } catch (error) {
+    console.error('[Storage] Не удалось прочитать язык сервера:', error);
+    return 'ru';
   }
-  return 'ru';
 }
 
 export const translations = {
@@ -29,7 +27,6 @@ export const translations = {
     leaderboardTitle: '🏆 Топ сервера',
     leaderboardEmpty: 'Топ пуст.',
     newsError: 'Ошибка при отправке новости. Убедитесь, что бот имеет права на отправку сообщений в указанный канал.',
-
     helpMainTitle: (botName: string) => `📖 Помощь по ${botName}`,
     helpMainDesc: 'Настройте ваш сервер, выберите, что включить, затем просмотрите команды ниже.',
     helpGettingStarted: '🚀 Начало работы',
@@ -69,11 +66,10 @@ export const translations = {
     leaderboardTitle: '🏆 Server Leaderboard',
     leaderboardEmpty: 'Leaderboard is empty.',
     newsError: 'Error sending news. Ensure the bot has permissions to send messages in the target channel.',
-
     helpMainTitle: (botName: string) => `📖 ${botName} Help`,
     helpMainDesc: 'Set up your server, pick what to enable, then browse commands below.',
     helpGettingStarted: '🚀 Getting Started',
-    helpGettingStartedValue: '**1. Setup Language** — Run `/language` to configure your server language.\n**2. Browse commands** — Use the menu below to view categories and commands.',
+    helpGettingStartedValue: '**1. Setup Language** — Run `/language` to configure the server language.\n**2. Browse commands** — Use the menu below to view categories and commands.',
     helpHowItWorks: 'ℹ️ How It Works',
     helpHowItWorksValue: '• Commands are categorized for easy navigation.\n• Settings are saved per server.',
     helpSelectCategoryPlaceholder: 'Select a category...',
