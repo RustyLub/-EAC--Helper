@@ -84,6 +84,7 @@ npm start
 - `npm run build:web` — проверка frontend и сборка React/Vite в `dist/`.
 - `npm run build` — обе проверки/сборки.
 - `npm run lint` — повторная проверка TypeScript backend и Express-сервера.
+- `npm test` — тесты изоляции серверов и сброса оперативной памяти при перезапуске.
 - `npm run bot` — запуск только Discord-бота без Express API и веб-панели.
 - `npm start` — запуск полного сервиса (веб-панель + API + Discord-бот).
 
