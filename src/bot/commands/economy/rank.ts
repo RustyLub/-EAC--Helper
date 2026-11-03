@@ -1,35 +1,10 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import { getGuildLanguage, translations } from '../../utils/lang';
-import { db } from '../../firebase';
-
-export const data = new SlashCommandBuilder()
-  .setName('rank')
-  .setDescription('Check your current level and XP')
-  .addUserOption(option => 
-    option.setName('target')
-      .setDescription('User to check (leave blank for yourself)')
-      .setRequired(false));
-
-export async function execute(interaction: ChatInputCommandInteraction) {
-  if (!interaction.inGuild() || !interaction.guildId) {
-    await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
-    return;
-  }
-  const langId = await getGuildLanguage(interaction.guildId);
-  const t = translations[langId];
-
-  const target = interaction.options.getUser('target') || interaction.user;
-  const userRef = db.collection('guilds').doc(interaction.guildId).collection('users').doc(target.id);
-  
-  try {
-    const doc = await userRef.get();
-    const storedXp: unknown = doc.exists ? doc.data()?.xp : 0;
-    const xp = typeof storedXp === 'number' && Number.isFinite(storedXp) ? Math.max(0, storedXp) : 0;
-    const level = Math.floor(Math.sqrt(xp / 100));
-
-    await interaction.reply({ content: t.rankInfo(target.tag, level, xp) });
-  } catch (err) {
-    console.error(err);
-    await interaction.reply({ content: t.noPermission, ephemeral: true });
-  }
+import { getRuntimeGuild } from '../../utils/runtime';
+export const data=new SlashCommandBuilder().setName('rank').setDescription('Check your current level and XP').addUserOption(o=>o.setName('target').setDescription('User to check').setRequired(false));
+export async function execute(interaction:ChatInputCommandInteraction){
+ if(!interaction.inGuild()||!interaction.guildId){await interaction.reply({content:'Эта команда доступна только на сервере.',ephemeral:true});return;}
+ const t=translations[await getGuildLanguage(interaction.guildId)]; const target=interaction.options.getUser('target')||interaction.user;
+ const xp=getRuntimeGuild(interaction.guildId).users[target.id]?.xp??0; const level=Math.floor(Math.sqrt(xp/100));
+ await interaction.reply({content:t.rankInfo(target.tag,level,xp)+(xp===0?'\n\nОпыт начисляется во время работы бота и сбрасывается после перезапуска.':'')});
 }
