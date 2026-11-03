@@ -22,7 +22,7 @@ export async function deployCommands() {
   }
 
   const guildId = process.env.GUILD_ID?.trim();
-  if (guildId && !/^\\d{17,20}$/.test(guildId)) {
+  if (guildId && !/^\d{17,20}$/.test(guildId)) {
     throw new Error('[Bot] GUILD_ID is invalid. Use the numeric ID of your Discord test server or leave it empty.');
   }
 
