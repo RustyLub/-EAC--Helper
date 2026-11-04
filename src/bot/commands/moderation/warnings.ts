@@ -1,6 +1,6 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { getGuildLanguage } from '../../utils/lang';
-import { getRuntimeGuild } from '../../utils/runtime';
+import { getRuntimeGuild } from '../../utils/runtime';\nimport { requireModuleEnabled } from '../../utils/moduleGuard';
 
 export const data = new SlashCommandBuilder()
   .setName('warnings')
@@ -9,7 +9,7 @@ export const data = new SlashCommandBuilder()
   .addBooleanOption(option => option.setName('clear').setDescription('Clear the selected user\'s warnings').setRequired(false))
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+export async function execute(interaction: ChatInputCommandInteraction) {\n  if (!(await requireModuleEnabled(interaction, 'moderation'))) return;
   if (!interaction.inGuild() || !interaction.guildId) {
     await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
     return;
