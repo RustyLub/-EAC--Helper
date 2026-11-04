@@ -1,6 +1,7 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { getGuildLanguage, translations } from '../../utils/lang';
 import { resolveModerationTarget, safeReason } from '../../utils/moderation';
+import { requireModuleEnabled } from '../../utils/moduleGuard';
 
 export const data = new SlashCommandBuilder()
   .setName('mute')
@@ -11,6 +12,7 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await requireModuleEnabled(interaction, 'moderation'))) return;
   const lang = await getGuildLanguage(interaction.guildId ?? '');
   const t = translations[lang];
   const targetUser = interaction.options.getUser('target', true);
