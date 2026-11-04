@@ -1,6 +1,7 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { getGuildLanguage } from '../../utils/lang';
-import { getRuntimeGuild } from '../../utils/runtime';\nimport { requireModuleEnabled } from '../../utils/moduleGuard';
+import { getRuntimeGuild } from '../../utils/runtime';
+import { requireModuleEnabled } from '../../utils/moduleGuard';
 
 export const data = new SlashCommandBuilder()
   .setName('warnings')
@@ -9,7 +10,8 @@ export const data = new SlashCommandBuilder()
   .addBooleanOption(option => option.setName('clear').setDescription('Clear the selected user\'s warnings').setRequired(false))
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
 
-export async function execute(interaction: ChatInputCommandInteraction) {\n  if (!(await requireModuleEnabled(interaction, 'moderation'))) return;
+export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await requireModuleEnabled(interaction, 'moderation'))) return;
   if (!interaction.inGuild() || !interaction.guildId) {
     await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
     return;
@@ -48,13 +50,19 @@ export async function execute(interaction: ChatInputCommandInteraction) {\n  if 
   const lines = records.slice(-3).reverse().map((warning, index) => {
     const timestamp = Math.floor(new Date(warning.createdAt).getTime() / 1000);
     const moderatorLabel = isRu ? 'Модератор' : 'Moderator';
-    return `**${index + 1}.** ${warning.reason}\n${moderatorLabel}: ${warning.moderatorTag} · <t:${timestamp}:R>`;
+    return `**${index + 1}.** ${warning.reason}
+${moderatorLabel}: ${warning.moderatorTag} · <t:${timestamp}:R>`;
   });
   const remaining = records.length > 3
-    ? (isRu ? `\nИ ещё ${records.length - 3} предупреждений.` : `\nAnd ${records.length - 3} more warnings.`)
+    ? (isRu ? `
+И ещё ${records.length - 3} предупреждений.` : `
+And ${records.length - 3} more warnings.`)
     : '';
   await interaction.reply({
-    content: `**${isRu ? 'Предупреждения' : 'Warnings'}: ${target.tag}**\n${lines.join('\n\n')}${remaining}`,
+    content: `**${isRu ? 'Предупреждения' : 'Warnings'}: ${target.tag}**
+${lines.join('
+
+')}${remaining}`,
     ephemeral: true,
     allowedMentions: { parse: [] },
   });
