@@ -1,12 +1,18 @@
 import { Events, Message, PermissionFlagsBits } from 'discord.js';
-import { getRuntimeGuild } from '../utils/runtime';
+import { DEFAULT_LEVEL_UP_MESSAGE, getRuntimeGuild } from '../utils/runtime';
+import { renderTemplate } from '../utils/template';
 
 export const name = Events.MessageCreate;
 export const once = false;
 
 const MAP_LIMIT = 20_000;
+const PRUNE_INTERVAL_MS = 30_000;
+// Кулдаун XP настраивается до 3600 секунд, поэтому записи нужно хранить дольше часа.
+// Раньше они удалялись через 10 минут и длинный кулдаун фактически не работал.
+const XP_COOLDOWN_RETENTION_MS = 61 * 60_000;
 const spamTracker = new Map<string, number[]>();
 const xpCooldowns = new Map<string, number>();
+let lastPruneAt = 0;
 
 function hasModerationBypass(message: Message): boolean {
   return Boolean(message.member?.permissions.has(PermissionFlagsBits.ManageMessages));
@@ -26,7 +32,7 @@ function pruneMemory(now: number): void {
     else spamTracker.delete(key);
   }
   for (const [key, timestamp] of xpCooldowns) {
-    if (now - timestamp > 10 * 60_000) xpCooldowns.delete(key);
+    if (now - timestamp > XP_COOLDOWN_RETENTION_MS) xpCooldowns.delete(key);
   }
   // Prevent unbounded memory use without clearing active users' protection state.
   while (spamTracker.size > MAP_LIMIT) {
@@ -50,7 +56,11 @@ export async function execute(message: Message) {
   const memberKey = `${guildId}:${userId}`;
   const bypass = hasModerationBypass(message);
   const now = Date.now();
-  pruneMemory(now);
+  // Чистка проходит по всем записям, поэтому запускаем её не на каждое сообщение, а раз в полминуты.
+  if (now - lastPruneAt >= PRUNE_INTERVAL_MS) {
+    lastPruneAt = now;
+    pruneMemory(now);
+  }
 
   const sendNotice = async (text: string) => {
     if (message.channel.isSendable()) {
@@ -95,7 +105,13 @@ export async function execute(message: Message) {
       if (recent.length >= guildData.automod.spamLimit) {
         spamTracker.delete(memberKey);
         await message.delete().catch(() => null);
-        const timedOut = await message.member?.timeout(guildData.automod.timeoutMs, 'EAC Helper: anti-spam').then(() => true).catch(() => false);
+        const timeoutMs = guildData.automod.timeoutMs;
+        if (timeoutMs <= 0) {
+          // Тайм-аут отключён настройкой: только удаляем сообщение и предупреждаем.
+          await sendNotice(`${message.author}, остановите спам.`);
+          return;
+        }
+        const timedOut = await message.member?.timeout(timeoutMs, 'EAC Helper: anti-spam').then(() => true).catch(() => false);
         await sendNotice(timedOut
           ? `${message.author} получил тайм-аут за спам.`
           : `${message.author}, остановите спам. Не удалось выдать тайм-аут — проверьте права бота.`);
@@ -106,7 +122,7 @@ export async function execute(message: Message) {
     if (guildData.modules['custom-commands'] !== false && content.startsWith('!')) {
       const commandName = content.slice(1).trim().split(/\s+/)[0]?.toLowerCase();
       const customCommands = guildData.customCommands;
-      if (commandName && customCommands && typeof customCommands[commandName] === 'string') {
+      if (commandName && customCommands && Object.hasOwn(customCommands, commandName) && typeof customCommands[commandName] === 'string') {
         await sendNotice(customCommands[commandName].slice(0, 2000));
         return;
       }
@@ -127,10 +143,14 @@ export async function execute(message: Message) {
     xpCooldowns.set(memberKey, now);
 
     if (newLevel > oldLevel) {
-      const levelMessage = levels.levelUpMessage || 'Поздравляем, {user}! Вы достигли {level} уровня!';
-      await sendNotice(guildData.language === 'en'
-        ? `Congratulations ${message.author}! You've reached level **${newLevel}**!`
-        : levelMessage.replaceAll('{user}', message.author.toString()).replaceAll('{level}', String(newLevel)));
+      // Своё сообщение из панели используется на любом языке; стандартное — переводится по языку сервера.
+      const hasCustomMessage = Boolean(levels.levelUpMessage) && levels.levelUpMessage !== DEFAULT_LEVEL_UP_MESSAGE;
+      const template = hasCustomMessage
+        ? levels.levelUpMessage
+        : guildData.language === 'en'
+          ? "Congratulations {user}! You've reached level **{level}**!"
+          : DEFAULT_LEVEL_UP_MESSAGE;
+      await sendNotice(renderTemplate(template, { user: message.author.toString(), level: String(newLevel) }));
     }
   } catch (error) {
     console.error('[Bot] Ошибка в обработчике messageCreate:', error);
