@@ -8,7 +8,8 @@ import {
   NewsChannel,
 } from 'discord.js';
 import { getGuildLanguage, translations } from '../../utils/lang';
-import { getRuntimeGuild } from '../../utils/runtime';\nimport { requireModuleEnabled } from '../../utils/moduleGuard';
+import { getRuntimeGuild } from '../../utils/runtime';
+import { requireModuleEnabled } from '../../utils/moduleGuard';
 
 export const data = new SlashCommandBuilder()
   .setName('news')
@@ -34,7 +35,8 @@ export const data = new SlashCommandBuilder()
       .setMaxLength(500))
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
-export async function execute(interaction: ChatInputCommandInteraction) {\n  if (!(await requireModuleEnabled(interaction, 'announcements'))) return;
+export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await requireModuleEnabled(interaction, 'announcements'))) return;
   if (!interaction.inGuild() || !interaction.guild) {
     await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
     return;
