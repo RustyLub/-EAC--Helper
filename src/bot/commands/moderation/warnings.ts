@@ -60,7 +60,7 @@ And ${records.length - 3} more warnings.`)
     : '';
   await interaction.reply({
     content: `**${isRu ? 'Предупреждения' : 'Warnings'}: ${target.tag}**
-${lines.join('\\n\\n')}${remaining}`,
+${lines.join('\n\n')}${remaining}`,
     ephemeral: true,
     allowedMentions: { parse: [] },
   });
