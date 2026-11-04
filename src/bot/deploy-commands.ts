@@ -1,10 +1,11 @@
-import { REST, Routes } from 'discord.js';
+import { InteractionContextType, REST, Routes } from 'discord.js';
 import 'dotenv/config';
 import { commands as commandModules } from './registry';
 
 const commands = commandModules.flatMap((command) => {
   if ('data' in command && 'execute' in command) {
-    return [command.data.toJSON()];
+    // Все команды работают только на серверах: в личных сообщениях бот не хранит состояния сервера.
+    return [{ ...command.data.toJSON(), contexts: [InteractionContextType.Guild] }];
   }
   console.warn('[Bot] A command is missing required data or execute properties.');
   return [];
