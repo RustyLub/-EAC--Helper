@@ -22,11 +22,14 @@ export type RuntimeGuild = {
   modules: Record<string, boolean>;
 };
 
+/** Сообщение о повышении уровня по умолчанию (используется и для выбора английской версии). */
+export const DEFAULT_LEVEL_UP_MESSAGE = 'Поздравляем, {user}! Вы достигли {level} уровня!';
+
 const guilds = new Map<string, RuntimeGuild>();
 const defaults = (): RuntimeGuild => ({
   language: 'ru',
   automod: { antiSpam: false, antiInvite: false, antiCaps: false, badWords: [], spamLimit: 5, spamWindowMs: 5000, timeoutMs: 60000 },
-  levels: { xpPerMessage: 15, cooldownSeconds: 60, xpMultiplier: 100, levelUpMessage: 'Поздравляем, {user}! Вы достигли {level} уровня!' },
+  levels: { xpPerMessage: 15, cooldownSeconds: 60, xpMultiplier: 100, levelUpMessage: DEFAULT_LEVEL_UP_MESSAGE },
   customCommands: {},
   users: {},
   warnings: {},

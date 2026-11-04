@@ -1,8 +1,7 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { MessageFlags, ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { getGuildLanguage, translations } from '../../utils/lang';
 import { resolveModerationTarget, safeReason } from '../../utils/moderation';
 import { requireModuleEnabled } from '../../utils/moduleGuard';
-
 export const data = new SlashCommandBuilder()
   .setName('ban')
   .setDescription('Ban a user from the server')
@@ -18,7 +17,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const reason = safeReason(interaction.options.getString('reason'));
   const result = await resolveModerationTarget(interaction, targetUser.id, PermissionFlagsBits.BanMembers);
   if (result.ok === false) {
-    await interaction.reply({ content: result.message, ephemeral: true });
+    await interaction.reply({ content: result.message, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -27,6 +26,6 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     await interaction.reply({ content: t.banned(targetUser.tag, reason) });
   } catch (error) {
     console.error('[Command:ban] Failed:', error);
-    await interaction.reply({ content: t.noPermission, ephemeral: true });
+    await interaction.reply({ content: t.noPermission, flags: MessageFlags.Ephemeral });
   }
 }

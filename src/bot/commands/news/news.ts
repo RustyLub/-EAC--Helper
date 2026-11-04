@@ -1,4 +1,4 @@
-import {
+import { MessageFlags,
   ChatInputCommandInteraction,
   SlashCommandBuilder,
   PermissionFlagsBits,
@@ -38,13 +38,13 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction: ChatInputCommandInteraction) {
   if (!(await requireModuleEnabled(interaction, 'announcements'))) return;
   if (!interaction.inGuild() || !interaction.guild) {
-    await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
+    await interaction.reply({ content: 'Эта команда доступна только на сервере.', flags: MessageFlags.Ephemeral });
     return;
   }
 
   const t = translations[await getGuildLanguage(interaction.guildId!)];
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-    await interaction.reply({ content: t.noPermission, ephemeral: true });
+    await interaction.reply({ content: t.noPermission, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -52,18 +52,18 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const selectedChannel = interaction.options.getChannel('channel');
   const targetChannel = selectedChannel ?? (configuredId ? await interaction.guild.channels.fetch(configuredId).catch(() => null) : null);
   if (!targetChannel) {
-    await interaction.reply({ content: 'Укажите канал в /news или задайте канал по умолчанию в панели.', ephemeral: true });
+    await interaction.reply({ content: 'Укажите канал в /news или задайте канал по умолчанию в панели.', flags: MessageFlags.Ephemeral });
     return;
   }
   if (!(targetChannel instanceof TextChannel) && !(targetChannel instanceof NewsChannel)) {
-    await interaction.reply({ content: t.newsError, ephemeral: true });
+    await interaction.reply({ content: t.newsError, flags: MessageFlags.Ephemeral });
     return;
   }
 
   const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe().catch(() => null);
   const permissions = botMember?.permissionsIn(targetChannel);
   if (!permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
-    await interaction.reply({ content: t.noPermission, ephemeral: true });
+    await interaction.reply({ content: t.noPermission, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -82,7 +82,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const parsed = new URL(imageUrl);
       if (parsed.protocol === 'https:' || parsed.protocol === 'http:') embed.setImage(parsed.toString());
     } catch {
-      await interaction.reply({ content: 'Укажите корректную ссылку на изображение (HTTP или HTTPS).', ephemeral: true });
+      await interaction.reply({ content: 'Укажите корректную ссылку на изображение (HTTP или HTTPS).', flags: MessageFlags.Ephemeral });
       return;
     }
   }
@@ -92,9 +92,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       embeds: [embed],
       allowedMentions: { parse: [] },
     });
-    await interaction.reply({ content: t.newsSent, ephemeral: true });
+    await interaction.reply({ content: t.newsSent, flags: MessageFlags.Ephemeral });
   } catch (error) {
     console.error('[Command:news] Failed to send announcement:', error);
-    await interaction.reply({ content: t.newsError, ephemeral: true });
+    await interaction.reply({ content: t.newsError, flags: MessageFlags.Ephemeral });
   }
 }

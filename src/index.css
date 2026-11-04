@@ -45,8 +45,8 @@ button:disabled{opacity:.6;cursor:wait}
 
 .settings-form{display:flex;flex-direction:column;gap:13px;margin:18px 0}
 .settings-form label{display:flex;flex-direction:column;gap:7px;color:#cbd5e1;font-size:12px;font-weight:600}
-.settings-form input:not([type=checkbox]),.settings-form textarea{width:100%;padding:10px 12px;border:1px solid #344457;border-radius:8px;background:#0b121b;color:#eef3f9;outline:none;font:inherit;font-weight:400}
-.settings-form input:focus,.settings-form textarea:focus{border-color:#b83a55}
+.settings-form input:not([type=checkbox]),.settings-form textarea,.settings-form select{width:100%;padding:10px 12px;border:1px solid #344457;border-radius:8px;background:#0b121b;color:#eef3f9;outline:none;font:inherit;font-weight:400}
+.settings-form input:focus,.settings-form textarea:focus,.settings-form select:focus{border-color:#b83a55}
 .settings-form textarea{min-height:76px;resize:vertical;line-height:1.5}
 .settings-form input[type=checkbox]{width:18px;height:18px;accent-color:#d74762}
 .settings-form h3{margin:12px 0 4px;color:#f0f4fa;font-size:14px}

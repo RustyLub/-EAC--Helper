@@ -4,20 +4,17 @@ import { randomBytes } from "crypto";
 import { createServer as createViteServer } from "vite";
 import { startBot } from "./src/bot/index";
 import { getRuntimeGuild } from "./src/bot/utils/runtime";
-import { fileURLToPath } from "url";
+import { applySettingsPatch, serializeSettings } from "./src/bot/utils/settings";
 import cookieParser from "cookie-parser";
 
-// Keep Node.js default fatal-error termination semantics while logging the cause.
-process.on("unhandledRejection", (reason) => {
-  console.error("[EAC Helper] Необработанное отклонение Promise:", reason);
+// Log fatal asynchronous errors without swallowing Node.js's default process termination.
+process.on('unhandledRejection', (reason) => {
+  console.error('[EAC Helper] Необработанное отклонение Promise:', reason);
   throw reason;
 });
-process.on("uncaughtExceptionMonitor", (error) => {
-  console.error("[EAC Helper] Необработанное исключение процесса:", error);
+process.on('uncaughtExceptionMonitor', (error) => {
+  console.error('[EAC Helper] Необработанное исключение процесса:', error);
 });
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
@@ -238,6 +235,7 @@ async function startServer() {
     if (!userToken) return res.status(401).json({ error: "Not authenticated" });
 
     const guildId = req.params.guildId;
+    if (!/^\d{17,20}$/.test(guildId)) return res.status(400).json({ error: "Invalid guild ID" });
     try {
       const allowed = await userCanManageGuild(userToken, guildId);
       if (allowed === null) {
@@ -262,14 +260,16 @@ async function startServer() {
   app.get("/api/guilds/:guildId/channels", guildResourceHandler("channels"));
   app.get("/api/guilds/:guildId/roles", guildResourceHandler("roles"));
 
-  const supportedModules = new Set([
-    "moderation", "automod", "welcome", "levels", "custom-commands", "announcements",
-  ]);
+  const isGuildId = (value: unknown): value is string => typeof value === "string" && /^\d{17,20}$/.test(value);
 
   const authorizeGuildSettings = async (req: express.Request, res: express.Response) => {
     const token = req.cookies.discord_token;
     if (!token) {
       res.status(401).json({ error: "Not authenticated" });
+      return false;
+    }
+    if (!isGuildId(req.params.guildId)) {
+      res.status(400).json({ error: "Invalid guild ID" });
       return false;
     }
     try {
@@ -293,67 +293,28 @@ async function startServer() {
   // Web-panel settings share the bot runtime state and remain memory-only.
   app.get("/api/guilds/:guildId/settings", async (req, res) => {
     if (!(await authorizeGuildSettings(req, res))) return;
-    const stored = getRuntimeGuild(req.params.guildId);
-    const modules = Object.fromEntries([...supportedModules].map((id) => [id, stored.modules[id] !== false]));
-    res.json({
-      guildId: req.params.guildId, modules,
-      automod: stored.automod, levels: stored.levels,
-      welcome: stored.welcome ?? { enabled: false, channelId: "", message: "Добро пожаловать, {user}, на сервер {server}!" },
-      leave: stored.leave ?? { enabled: false, channelId: "", message: "{user} покинул сервер." },
-      customCommands: stored.customCommands,
-      announcementChannelId: stored.announcementChannelId ?? "",
-    });
+    res.json(serializeSettings(req.params.guildId, getRuntimeGuild(req.params.guildId)));
   });
 
+  // The whole request is validated before anything is written (see applySettingsPatch).
   app.put("/api/guilds/:guildId/settings", async (req, res) => {
     if (!(await authorizeGuildSettings(req, res))) return;
     const state = getRuntimeGuild(req.params.guildId);
-    const body = req.body ?? {};
-    if (body.modules !== undefined) {
-      if (!body.modules || typeof body.modules !== "object" || Array.isArray(body.modules)) return res.status(400).json({ error: "Expected a modules object" });
-      for (const [id, enabled] of Object.entries(body.modules)) {
-        if (!supportedModules.has(id) || typeof enabled !== "boolean") return res.status(400).json({ error: `Invalid module setting: ${id}` });
-        state.modules[id] = enabled;
-      }
-    }
-    if (body.automod !== undefined) {
-      const a = body.automod;
-      if (!a || typeof a !== "object" || !["antiSpam","antiInvite","antiCaps"].every(k => a[k] === undefined || typeof a[k] === "boolean") ||
-          (a.badWords !== undefined && (!Array.isArray(a.badWords) || a.badWords.length > 100 || a.badWords.some((w: unknown) => typeof w !== "string" || w.length > 80))) ||
-          (a.spamLimit !== undefined && (!Number.isInteger(a.spamLimit) || a.spamLimit < 2 || a.spamLimit > 20)) ||
-          (a.spamWindowMs !== undefined && (!Number.isInteger(a.spamWindowMs) || a.spamWindowMs < 1000 || a.spamWindowMs > 30000)) ||
-          (a.timeoutMs !== undefined && (!Number.isInteger(a.timeoutMs) || a.timeoutMs < 0 || a.timeoutMs > 2419200000))) return res.status(400).json({ error: "Invalid automod settings" });
-      state.automod = { ...state.automod, ...a, badWords: a.badWords?.map((w: string) => w.trim().toLowerCase()).filter(Boolean) ?? state.automod.badWords };
-    }
-    if (body.levels !== undefined) {
-      const l = body.levels;
-      if (!l || typeof l !== "object" ||
-          (l.xpPerMessage !== undefined && (!Number.isInteger(l.xpPerMessage) || l.xpPerMessage < 1 || l.xpPerMessage > 1000)) ||
-          (l.cooldownSeconds !== undefined && (!Number.isInteger(l.cooldownSeconds) || l.cooldownSeconds < 5 || l.cooldownSeconds > 3600)) ||
-          (l.xpMultiplier !== undefined && (!Number.isInteger(l.xpMultiplier) || l.xpMultiplier < 10 || l.xpMultiplier > 10000)) ||
-          (l.levelUpMessage !== undefined && (typeof l.levelUpMessage !== "string" || l.levelUpMessage.length > 500))) return res.status(400).json({ error: "Invalid levels settings" });
-      state.levels = { ...state.levels, ...l };
-    }
-    for (const key of ["welcome", "leave"] as const) {
-      if (body[key] === undefined) continue;
-      const value = body[key];
-      if (!value || typeof value !== "object" || typeof value.enabled !== "boolean" ||
-          (value.channelId !== undefined && typeof value.channelId !== "string") ||
-          (value.message !== undefined && (typeof value.message !== "string" || value.message.length > 1800))) return res.status(400).json({ error: `Invalid ${key} settings` });
-      state[key] = { ...state[key], ...value };
-    }
-    if (body.customCommands !== undefined) {
-      const commands = body.customCommands;
-      if (!commands || typeof commands !== "object" || Array.isArray(commands) || Object.keys(commands).length > 100 ||
-          Object.entries(commands).some(([name, value]) => !/^[a-z0-9_-]{1,32}$/.test(name) || typeof value !== "string" || !value.trim() || value.length > 1800)) return res.status(400).json({ error: "Invalid custom commands" });
-      state.customCommands = commands;
-    }
-    if (body.announcementChannelId !== undefined) {
-      if (typeof body.announcementChannelId !== "string" || body.announcementChannelId.length > 25) return res.status(400).json({ error: "Invalid announcement channel" });
-      state.announcementChannelId = body.announcementChannelId;
-    }
-    const modules = Object.fromEntries([...supportedModules].map((id) => [id, state.modules[id] !== false]));
-    res.json({ guildId: req.params.guildId, modules, automod: state.automod, levels: state.levels, welcome: state.welcome, leave: state.leave, customCommands: state.customCommands, announcementChannelId: state.announcementChannelId ?? "" });
+    const error = applySettingsPatch(state, req.body);
+    if (error) return res.status(400).json({ error });
+    res.json(serializeSettings(req.params.guildId, state));
+  });
+
+  // Unknown API routes answer with JSON instead of falling through to the SPA's index.html.
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ error: "Not found" });
+  });
+  app.use((error: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (res.headersSent) return next(error);
+    const status = typeof (error as { status?: unknown })?.status === "number" ? (error as { status: number }).status : 500;
+    if (status >= 500) console.error("Unhandled request error:", error);
+    if (req.path.startsWith("/api")) return res.status(status).json({ error: status >= 500 ? "Internal server error" : "Bad request" });
+    res.status(status).send(status >= 500 ? "Internal server error" : "Bad request");
   });
 
   startBot().catch((error) => {

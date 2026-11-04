@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, ArrowLeft, Bot, ChevronRight, CircleHelp, Command,
   Filter, LogOut, MessageSquare, Plus, RefreshCw, Search, Server, Shield,
@@ -68,6 +68,83 @@ function initials(name: string) {
   return name.trim().slice(0, 2).toUpperCase() || "??";
 }
 
+type ChannelOption = { id: string; name: string };
+
+/** Загружает настройки без побочных эффектов на интерфейс (для отката после ошибки сохранения). */
+async function loadSettingsQuiet(guildId: string): Promise<GuildSettings | null> {
+  try {
+    const response = await apiFetch(`/api/guilds/${encodeURIComponent(guildId)}/settings`);
+    return response.ok ? (await response.json() as GuildSettings) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Разбирает текст «имя=ответ» (по одной команде на строку): возвращает команды либо текст ошибки. */
+function parseCustomCommands(text: string): { commands: Record<string, string> } | { error: string } {
+  const commands: Record<string, string> = {};
+  const lines = text.split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].trim();
+    if (!line) continue;
+    const separator = line.indexOf("=");
+    const name = separator > 0 ? line.slice(0, separator).trim().toLowerCase() : "";
+    const response = separator > 0 ? line.slice(separator + 1).trim() : "";
+    if (!name || !response) return { error: `Строка ${index + 1}: нужен формат «имя=ответ».` };
+    if (!/^[a-z0-9_-]{1,32}$/.test(name) || name === "__proto__") {
+      return { error: `Строка ${index + 1}: имя «${name}» — только латиница, цифры, _ и -, до 32 символов.` };
+    }
+    commands[name] = response;
+  }
+  if (Object.keys(commands).length > 100) return { error: "Максимум 100 команд." };
+  return { commands };
+}
+
+// Поля ниже хранят набираемый текст локально и отправляют его на сервер только при потере фокуса.
+// Раньше значение пересобиралось из настроек на каждое нажатие клавиши, поэтому в списке слов
+// стиралась запятая, а в списке команд — строка без «=», и набрать новое значение было нельзя.
+function DraftTextarea({ value, onCommit, rows, placeholder }: { value: string; onCommit: (text: string) => void; rows?: number; placeholder?: string }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => { setDraft(value); }, [value]);
+  return <textarea rows={rows} placeholder={placeholder} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => { if (draft !== value) onCommit(draft); }} />;
+}
+
+function DraftInput({ value, onCommit, placeholder }: { value: string; onCommit: (text: string) => void; placeholder?: string }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => { setDraft(value); }, [value]);
+  return <input value={draft} placeholder={placeholder} onChange={(e) => setDraft(e.target.value)} onBlur={() => { if (draft.trim() !== value) onCommit(draft.trim()); }} />;
+}
+
+function NumberField({ value, min, max, onCommit }: { value: number; min: number; max: number; onCommit: (value: number) => void }) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => { setDraft(String(value)); }, [value]);
+  const commit = () => {
+    const parsed = Math.round(Number(draft));
+    if (draft.trim() === "" || !Number.isFinite(parsed)) { setDraft(String(value)); return; }
+    const clamped = Math.min(max, Math.max(min, parsed));
+    setDraft(String(clamped));
+    if (clamped !== value) onCommit(clamped);
+  };
+  return <input type="number" min={min} max={max} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit} />;
+}
+
+/** Выпадающий список каналов; если список недоступен (бота нет на сервере) — ручной ввод ID. */
+function ChannelPicker({ label, value, channels, onCommit }: { label: string; value: string; channels: ChannelOption[] | null; onCommit: (id: string) => void }) {
+  if (channels && channels.length > 0) {
+    const known = channels.some((channel) => channel.id === value);
+    return (
+      <label>{label}
+        <select value={value} onChange={(e) => onCommit(e.target.value)}>
+          <option value="">— не выбран —</option>
+          {!known && value && <option value={value}>Канал {value}</option>}
+          {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+        </select>
+      </label>
+    );
+  }
+  return <label>{label} (ID канала; список недоступен — бот не на сервере или нет прав)<DraftInput value={value} placeholder="ID канала Discord" onCommit={onCommit} /></label>;
+}
+
 export default function App() {
   const [user, setUser] = useState<DiscordUser | null>(null);
   const [guilds, setGuilds] = useState<Guild[]>([]);
@@ -80,6 +157,28 @@ export default function App() {
   const [moduleEnabled, setModuleEnabled] = useState<Record<string, boolean>>({});
   const [settings, setSettings] = useState<GuildSettings | null>(null);
   const [savingModule, setSavingModule] = useState(false);
+  const [channels, setChannels] = useState<ChannelOption[] | null>(null);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const channelsGuildId = useRef("");
+
+  const loadChannels = useCallback(async (guildId: string) => {
+    channelsGuildId.current = guildId;
+    setChannels(null);
+    try {
+      const response = await apiFetch(`/api/guilds/${encodeURIComponent(guildId)}/channels`);
+      if (!response.ok) return; // бота нет на сервере или нет доступа — остаётся ручной ввод ID
+      const data = await response.json() as Array<{ id: string; name: string; type: number; position?: number }>;
+      if (channelsGuildId.current !== guildId) return; // за время запроса выбрали другой сервер
+      setChannels(
+        data
+          .filter((channel) => channel.type === 0 || channel.type === 5) // текстовые и новостные
+          .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+          .map(({ id, name }) => ({ id, name })),
+      );
+    } catch {
+      // Ручной ввод ID остаётся доступным.
+    }
+  }, []);
 
   const loadSession = useCallback(async () => {
     setLoading(true);
@@ -186,60 +285,51 @@ export default function App() {
     }
   }, []);
 
-  const toggleModule = async (moduleId: string, enabled: boolean) => {
-    if (!selectedGuild || savingModule) return;
-    const previous = moduleEnabled[moduleId] !== false;
-    setModuleEnabled((current) => ({ ...current, [moduleId]: enabled }));
-    setSavingModule(true);
-    setError("");
-    try {
-      const response = await apiFetch(`/api/guilds/${encodeURIComponent(selectedGuild.id)}/settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modules: { [moduleId]: enabled } }),
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({})) as { error?: string };
-        if (response.status === 401) {
-          setUser(null);
-          setGuilds([]);
-          setSelectedGuild(null);
-          setActiveModule(null);
+  // Сохранения идут строго по очереди. Раньше параллельный запрос молча отбрасывался
+  // (например, клик по переключателю сразу после ввода текста терял одну из настроек).
+  const saveSettings = (patch: Partial<GuildSettings>): Promise<void> => {
+    const guild = selectedGuild;
+    if (!guild) return Promise.resolve();
+    setSettings((current) => current ? { ...current, ...patch, modules: { ...current.modules, ...patch.modules } } : current);
+    if (patch.modules) setModuleEnabled((current) => ({ ...current, ...patch.modules }));
+
+    const run = async () => {
+      setSavingModule(true);
+      setError("");
+      try {
+        const response = await apiFetch(`/api/guilds/${encodeURIComponent(guild.id)}/settings`, {
+          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({})) as { error?: string };
+          if (response.status === 401) {
+            setUser(null);
+            setGuilds([]);
+            setSelectedGuild(null);
+            setActiveModule(null);
+          }
+          throw new Error(data.error || `Не удалось сохранить настройки (HTTP ${response.status}).`);
         }
-        throw new Error(data.error || `Не удалось сохранить настройку (HTTP ${response.status}).`);
+        const data = await response.json() as GuildSettings;
+        setSettings(data);
+        setModuleEnabled(data.modules || {});
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Ошибка сохранения настроек.");
+        // Показываем фактическое состояние сервера вместо отклонённых правок.
+        const fresh = await loadSettingsQuiet(guild.id);
+        if (fresh) {
+          setSettings(fresh);
+          setModuleEnabled(fresh.modules || {});
+        }
+      } finally {
+        setSavingModule(false);
       }
-      const data = await response.json() as { modules?: Record<string, boolean> };
-      setModuleEnabled(data.modules || {});
-    } catch (e) {
-      setModuleEnabled((current) => ({ ...current, [moduleId]: previous }));
-      setError(e instanceof Error ? e.message : "Ошибка сохранения.");
-    } finally {
-      setSavingModule(false);
-    }
+    };
+    saveQueue.current = saveQueue.current.then(run);
+    return saveQueue.current;
   };
 
-  const saveSettings = async (patch: Partial<GuildSettings>) => {
-    if (!selectedGuild || !settings || savingModule) return;
-    const previous = settings;
-    const next = { ...settings, ...patch };
-    setSettings(next);
-    setSavingModule(true);
-    setError("");
-    try {
-      const response = await apiFetch(`/api/guilds/${encodeURIComponent(selectedGuild.id)}/settings`, {
-        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({})) as { error?: string };
-        throw new Error(data.error || `Не удалось сохранить настройки (HTTP ${response.status}).`);
-      }
-      const data = await response.json() as GuildSettings;
-      setSettings(data); setModuleEnabled(data.modules || {});
-    } catch (e) {
-      setSettings(previous);
-      setError(e instanceof Error ? e.message : "Ошибка сохранения настроек.");
-    } finally { setSavingModule(false); }
-  };
+  const toggleModule = (moduleId: string, enabled: boolean) => saveSettings({ modules: { [moduleId]: enabled } });
 
   const filteredModules = useMemo(
     () => modules.filter((item) => (item.name + " " + item.description + " " + item.category).toLowerCase().includes(search.toLowerCase())),
@@ -292,7 +382,15 @@ export default function App() {
           {guilds.length ? (
             <div className="server-grid">
               {guilds.map((guild) => (
-                <button className="server-card" key={guild.id} onClick={() => { setSelectedGuild(guild); setActiveModule(null); void loadGuildSettings(guild.id); }}>
+                <button className="server-card" key={guild.id} onClick={() => {
+                  // Сбрасываем данные прошлого сервера, чтобы случайно не сохранить их в новый.
+                  setSettings(null);
+                  setModuleEnabled({});
+                  setSelectedGuild(guild);
+                  setActiveModule(null);
+                  void loadGuildSettings(guild.id);
+                  void loadChannels(guild.id);
+                }}>
                   {guild.icon ? <img className="server-icon" src={`https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128`} alt="" /> : <span className="server-icon server-fallback">{initials(guild.name)}</span>}
                   <span className="server-info"><b>{guild.name}</b><small>Открыть панель управления</small></span>
                   <ChevronRight size={19} />
@@ -331,34 +429,52 @@ export default function App() {
                 <div className="module-setting-row"><div><b>{activeModule.name}</b><small>{moduleEnabled[activeModule.id] === false ? "Модуль выключен" : "Модуль включён"}</small></div><button className={`toggle ${moduleEnabled[activeModule.id] !== false ? "toggle-on" : ""}`} role="switch" aria-checked={moduleEnabled[activeModule.id] !== false} disabled={savingModule} onClick={() => void toggleModule(activeModule.id, moduleEnabled[activeModule.id] === false)}><span /></button></div>
                 {!settings ? <p>Загружаем параметры…</p> : <>
                   {activeModule.id === "automod" && <div className="settings-form">
-                    {([["antiSpam","Антиспам"],["antiInvite","Блокировать Discord-приглашения"],["antiCaps","Фильтр капса"]] as const).map(([key,label]) => <label className="module-setting-row" key={key}><span>{label}</span><input type="checkbox" checked={settings.automod[key]} onChange={e => void saveSettings({ automod: { ...settings.automod, [key]: e.target.checked } })} /></label>)}
-                    <label>Сообщений для срабатывания<input type="number" min="2" max="20" value={settings.automod.spamLimit} onChange={e => setSettings(s => s ? {...s,automod:{...s.automod,spamLimit:Number(e.target.value)}} : s)} onBlur={() => void saveSettings({automod:settings.automod})}/></label>
-                    <label>Окно антиспама (мс)<input type="number" min="1000" max="30000" value={settings.automod.spamWindowMs} onChange={e => setSettings(s => s ? {...s,automod:{...s.automod,spamWindowMs:Number(e.target.value)}} : s)} onBlur={() => void saveSettings({automod:settings.automod})}/></label>
-                    <label>Тайм-аут за спам (мс)<input type="number" min="0" max="2419200000" value={settings.automod.timeoutMs} onChange={e => setSettings(s => s ? {...s,automod:{...s.automod,timeoutMs:Number(e.target.value)}} : s)} onBlur={() => void saveSettings({automod:settings.automod})}/></label>
-                    <label>Запрещённые слова, через запятую<textarea value={settings.automod.badWords.join(", ")} onChange={e => setSettings(s => s ? {...s,automod:{...s.automod,badWords:e.target.value.split(",").map(x=>x.trim()).filter(Boolean)}} : s)} onBlur={() => void saveSettings({automod:settings.automod})}/></label>
+                    {([["antiSpam", "Антиспам"], ["antiInvite", "Блокировать Discord-приглашения"], ["antiCaps", "Фильтр капса"]] as const).map(([key, label]) => (
+                      <label className="module-setting-row" key={key}><span>{label}</span><input type="checkbox" checked={settings.automod[key]} onChange={(e) => void saveSettings({ automod: { ...settings.automod, [key]: e.target.checked } })} /></label>
+                    ))}
+                    <label>Сообщений для срабатывания (2–20)<NumberField value={settings.automod.spamLimit} min={2} max={20} onCommit={(value) => void saveSettings({ automod: { ...settings.automod, spamLimit: value } })} /></label>
+                    <label>Окно антиспама, мс (1000–30000)<NumberField value={settings.automod.spamWindowMs} min={1000} max={30000} onCommit={(value) => void saveSettings({ automod: { ...settings.automod, spamWindowMs: value } })} /></label>
+                    <label>Тайм-аут за спам, мс (0 — без тайм-аута)<NumberField value={settings.automod.timeoutMs} min={0} max={2419200000} onCommit={(value) => void saveSettings({ automod: { ...settings.automod, timeoutMs: value } })} /></label>
+                    <label>Запрещённые слова — через запятую или с новой строки
+                      <DraftTextarea value={settings.automod.badWords.join(", ")} onCommit={(text) => void saveSettings({ automod: { ...settings.automod, badWords: text.split(/[,\n]/).map((word) => word.trim()).filter(Boolean) } })} />
+                    </label>
                   </div>}
                   {activeModule.id === "levels" && <div className="settings-form">
-                    <label>XP за сообщение<input type="number" min="1" max="1000" value={settings.levels.xpPerMessage} onChange={e=>setSettings(s=>s?{...s,levels:{...s.levels,xpPerMessage:Number(e.target.value)}}:s)} onBlur={()=>void saveSettings({levels:settings.levels})}/></label>
-                    <label>Кулдаун начисления (секунды)<input type="number" min="5" max="3600" value={settings.levels.cooldownSeconds} onChange={e=>setSettings(s=>s?{...s,levels:{...s.levels,cooldownSeconds:Number(e.target.value)}}:s)} onBlur={()=>void saveSettings({levels:settings.levels})}/></label>
-                    <label>Сложность уровня (множитель)<input type="number" min="10" max="10000" value={settings.levels.xpMultiplier} onChange={e=>setSettings(s=>s?{...s,levels:{...s.levels,xpMultiplier:Number(e.target.value)}}:s)} onBlur={()=>void saveSettings({levels:settings.levels})}/></label>
-                    <label>Сообщение при повышении уровня<textarea value={settings.levels.levelUpMessage} onChange={e=>setSettings(s=>s?{...s,levels:{...s.levels,levelUpMessage:e.target.value}}:s)} onBlur={()=>void saveSettings({levels:settings.levels})}/></label>
-                    <small>Переменные: {"{user}"} и {"{level}"}.</small>
+                    <label>XP за сообщение (1–1000)<NumberField value={settings.levels.xpPerMessage} min={1} max={1000} onCommit={(value) => void saveSettings({ levels: { ...settings.levels, xpPerMessage: value } })} /></label>
+                    <label>Кулдаун начисления, секунды (5–3600)<NumberField value={settings.levels.cooldownSeconds} min={5} max={3600} onCommit={(value) => void saveSettings({ levels: { ...settings.levels, cooldownSeconds: value } })} /></label>
+                    <label>Сложность уровня — множитель (10–10000)<NumberField value={settings.levels.xpMultiplier} min={10} max={10000} onCommit={(value) => void saveSettings({ levels: { ...settings.levels, xpMultiplier: value } })} /></label>
+                    <label>Сообщение при повышении уровня
+                      <DraftTextarea value={settings.levels.levelUpMessage} onCommit={(text) => void saveSettings({ levels: { ...settings.levels, levelUpMessage: text } })} />
+                    </label>
+                    <small>Переменные: {"{user}"} и {"{level}"}. Уровень = √(XP ÷ множитель), округление вниз.</small>
                   </div>}
                   {activeModule.id === "welcome" && <div className="settings-form">
-                    {(["welcome","leave"] as const).map(key=><div key={key}><h3>{key==="welcome"?"Приветствие нового участника":"Сообщение при выходе"}</h3>
-                      <label className="module-setting-row"><span>Включено</span><input type="checkbox" checked={settings[key].enabled} onChange={e=>void saveSettings({[key]:{...settings[key],enabled:e.target.checked}} as Partial<GuildSettings>)}/></label>
-                      <label>ID текстового канала<input value={settings[key].channelId||""} placeholder="ID канала Discord" onChange={e=>setSettings(s=>s?{...s,[key]:{...s[key],channelId:e.target.value}}:s)} onBlur={()=>void saveSettings({[key]:settings[key]} as Partial<GuildSettings>)}/></label>
-                      <label>Текст сообщения<textarea value={settings[key].message||""} onChange={e=>setSettings(s=>s?{...s,[key]:{...s[key],message:e.target.value}}:s)} onBlur={()=>void saveSettings({[key]:settings[key]} as Partial<GuildSettings>)}/></label>
-                    </div>)}
-                    <small>Переменные: {"{user}"}, {"{server}"}, {"{membercount}"}.</small>
+                    {(["welcome", "leave"] as const).map((key) => (
+                      <div key={key}>
+                        <h3>{key === "welcome" ? "Приветствие нового участника" : "Сообщение при выходе"}</h3>
+                        <label className="module-setting-row"><span>Включено</span><input type="checkbox" checked={settings[key].enabled} onChange={(e) => void saveSettings({ [key]: { ...settings[key], enabled: e.target.checked } } as Partial<GuildSettings>)} /></label>
+                        <ChannelPicker label="Канал" value={settings[key].channelId || ""} channels={channels} onCommit={(id) => void saveSettings({ [key]: { ...settings[key], channelId: id } } as Partial<GuildSettings>)} />
+                        <label>Текст сообщения
+                          <DraftTextarea value={settings[key].message || ""} onCommit={(text) => void saveSettings({ [key]: { ...settings[key], message: text } } as Partial<GuildSettings>)} />
+                        </label>
+                      </div>
+                    ))}
+                    <small>Переменные: {"{user}"}, {"{server}"}, {"{membercount}"}. Чтобы сообщение отправлялось, выберите канал.</small>
                   </div>}
                   {activeModule.id === "custom-commands" && <div className="settings-form">
-                    <label>Пользовательские команды (одна на строку: имя=ответ)<textarea rows={8} value={Object.entries(settings.customCommands).map(([k,v])=>k+"="+v).join("\n")} onChange={e=>{const obj:Record<string,string>={};for(const line of e.target.value.split("\n")){const i=line.indexOf("=");if(i>0)obj[line.slice(0,i).trim().toLowerCase()]=line.slice(i+1).trim();}setSettings(s=>s?{...s,customCommands:obj}:s);}} onBlur={()=>void saveSettings({customCommands:settings.customCommands})}/></label>
-                    <small>Вызов в Discord: !имя. Максимум 100 команд, имя — латиница/цифры/_/-.</small>
+                    <label>Пользовательские команды — по одной на строку в формате имя=ответ
+                      <DraftTextarea rows={8} value={Object.entries(settings.customCommands).map(([name, text]) => `${name}=${text}`).join("\n")} onCommit={(text) => {
+                        const parsed = parseCustomCommands(text);
+                        if ("error" in parsed) { setError(parsed.error); return; }
+                        setError("");
+                        void saveSettings({ customCommands: parsed.commands });
+                      }} />
+                    </label>
+                    <small>Вызов в Discord: !имя. Максимум 100 команд; имя — латиница, цифры, _ или -.</small>
                   </div>}
                   {activeModule.id === "announcements" && <div className="settings-form">
-                    <label>Канал оповещений по умолчанию (ID)<input value={settings.announcementChannelId} onChange={e=>setSettings(s=>s?{...s,announcementChannelId:e.target.value}:s)} onBlur={()=>void saveSettings({announcementChannelId:settings.announcementChannelId})}/></label>
-                    <small>Команда /news пока позволяет выбрать канал вручную.</small>
+                    <ChannelPicker label="Канал оповещений по умолчанию" value={settings.announcementChannelId} channels={channels} onCommit={(id) => void saveSettings({ announcementChannelId: id })} />
+                    <small>Команда /news использует этот канал, если канал не указан в самой команде.</small>
                   </div>}
                   {activeModule.id === "moderation" && <div className="settings-form"><p>Команды: /ban, /kick, /mute, /warn, /warnings, /clear.</p><p>Права доступа проверяются Discord для каждой команды. Предупреждения хранятся в памяти и сбрасываются при перезапуске.</p></div>}
                 </>}

@@ -1,12 +1,10 @@
-import {
+import { MessageFlags,
   ChatInputCommandInteraction,
   SlashCommandBuilder,
   PermissionFlagsBits,
-  ChannelType,
 } from 'discord.js';
 import { getGuildLanguage, translations } from '../../utils/lang';
 import { requireModuleEnabled } from '../../utils/moduleGuard';
-
 export const data = new SlashCommandBuilder()
   .setName('clear')
   .setDescription('Delete a specific number of recent messages')
@@ -21,7 +19,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction: ChatInputCommandInteraction) {
   if (!(await requireModuleEnabled(interaction, 'moderation'))) return;
   if (!interaction.inGuild() || !interaction.guild) {
-    await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
+    await interaction.reply({ content: 'Эта команда доступна только на сервере.', flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -31,26 +29,27 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const channel = interaction.channel;
 
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
-    await interaction.reply({ content: t.noPermission, ephemeral: true });
+    await interaction.reply({ content: t.noPermission, flags: MessageFlags.Ephemeral });
     return;
   }
 
-  if (!channel || channel.type !== ChannelType.GuildText) {
-    await interaction.reply({ content: t.newsError, ephemeral: true });
+  // Поддерживаем текстовые, новостные каналы и ветки — везде, где у канала есть bulkDelete.
+  if (!channel || !('bulkDelete' in channel)) {
+    await interaction.reply({ content: t.clearUnsupportedChannel, flags: MessageFlags.Ephemeral });
     return;
   }
 
   const botMember = interaction.guild.members.me;
   if (!botMember?.permissionsIn(channel).has([PermissionFlagsBits.ManageMessages, PermissionFlagsBits.ReadMessageHistory])) {
-    await interaction.reply({ content: t.noPermission, ephemeral: true });
+    await interaction.reply({ content: t.noPermission, flags: MessageFlags.Ephemeral });
     return;
   }
 
   try {
     const deleted = await channel.bulkDelete(amount, true);
-    await interaction.reply({ content: t.cleared(deleted.size), ephemeral: true });
+    await interaction.reply({ content: t.cleared(deleted.size), flags: MessageFlags.Ephemeral });
   } catch (error) {
     console.error('[Command:clear] Failed to bulk delete messages:', error);
-    await interaction.reply({ content: t.noPermission, ephemeral: true });
+    await interaction.reply({ content: t.noPermission, flags: MessageFlags.Ephemeral });
   }
 }

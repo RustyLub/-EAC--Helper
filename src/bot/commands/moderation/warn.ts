@@ -1,9 +1,8 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { MessageFlags, ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { getGuildLanguage, translations } from '../../utils/lang';
 import { resolveModerationTarget, safeReason } from '../../utils/moderation';
 import { getRuntimeGuild } from '../../utils/runtime';
 import { requireModuleEnabled } from '../../utils/moduleGuard';
-
 export const data = new SlashCommandBuilder()
   .setName('warn')
   .setDescription('Warn a user')
@@ -21,7 +20,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction: ChatInputCommandInteraction) {
   if (!(await requireModuleEnabled(interaction, 'moderation'))) return;
   if (!interaction.inGuild() || !interaction.guildId) {
-    await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
+    await interaction.reply({ content: 'Эта команда доступна только на сервере.', flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -31,7 +30,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const result = await resolveModerationTarget(interaction, target.id, PermissionFlagsBits.ModerateMembers);
 
   if (result.ok === false) {
-    await interaction.reply({ content: result.message, ephemeral: true });
+    await interaction.reply({ content: result.message, flags: MessageFlags.Ephemeral });
     return;
   }
 

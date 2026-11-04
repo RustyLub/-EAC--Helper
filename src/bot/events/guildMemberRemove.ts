@@ -1,5 +1,6 @@
 import { Events, GuildMember, EmbedBuilder } from 'discord.js';
 import { getRuntimeGuild } from '../utils/runtime';
+import { renderTemplate } from '../utils/template';
 
 export const name = Events.GuildMemberRemove;
 export const once = false;
@@ -18,13 +19,12 @@ export async function execute(member: GuildMember) {
     const botMember = await member.guild.members.fetchMe().catch(() => null);
     if (!botMember?.permissionsIn(fetchedChannel).has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) return;
 
-    let message = data.message || "**{user}** покинул(а) сервер **{server}**.";
-    
-    // Replace variables
-    message = message
-      .replace(/{user}/g, member.user.username)
-      .replace(/{server}/g, member.guild.name)
-      .replace(/{membercount}/g, member.guild.memberCount.toString());
+    const template = data.message || "**{user}** покинул(а) сервер **{server}**.";
+    const message = renderTemplate(template, {
+      user: member.user.username,
+      server: member.guild.name,
+      membercount: member.guild.memberCount.toString(),
+    });
 
     const embed = new EmbedBuilder()
       .setColor('#ED4245')

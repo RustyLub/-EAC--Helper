@@ -1,8 +1,7 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { MessageFlags, ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { getGuildLanguage } from '../../utils/lang';
 import { getRuntimeGuild } from '../../utils/runtime';
 import { requireModuleEnabled } from '../../utils/moduleGuard';
-
 export const data = new SlashCommandBuilder()
   .setName('warnings')
   .setDescription('View or clear a user\'s warnings')
@@ -13,14 +12,14 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction: ChatInputCommandInteraction) {
   if (!(await requireModuleEnabled(interaction, 'moderation'))) return;
   if (!interaction.inGuild() || !interaction.guildId) {
-    await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
+    await interaction.reply({ content: 'Эта команда доступна только на сервере.', flags: MessageFlags.Ephemeral });
     return;
   }
 
   const lang = await getGuildLanguage(interaction.guildId);
   const isRu = lang === 'ru';
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) {
-    await interaction.reply({ content: isRu ? 'Недостаточно прав для просмотра предупреждений.' : 'You do not have permission to view warnings.', ephemeral: true });
+    await interaction.reply({ content: isRu ? 'Недостаточно прав для просмотра предупреждений.' : 'You do not have permission to view warnings.', flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -32,7 +31,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     delete guild.warnings[target.id];
     await interaction.reply({
       content: isRu ? `Предупреждения пользователя **${target.tag}** очищены.` : `Warnings for **${target.tag}** have been cleared.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -42,7 +41,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       content: isRu
         ? `У пользователя **${target.tag}** нет предупреждений в текущем сеансе бота.`
         : `**${target.tag}** has no warnings in the current bot session.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -50,18 +49,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const lines = records.slice(-3).reverse().map((warning, index) => {
     const timestamp = Math.floor(new Date(warning.createdAt).getTime() / 1000);
     const moderatorLabel = isRu ? 'Модератор' : 'Moderator';
-    return `**${index + 1}.** ${warning.reason}
-${moderatorLabel}: ${warning.moderatorTag} · <t:${timestamp}:R>`;
+    return `**${index + 1}.** ${warning.reason}\n${moderatorLabel}: ${warning.moderatorTag} · <t:${timestamp}:R>`;
   });
   const remaining = records.length > 3
-    ? (isRu ? `
-И ещё ${records.length - 3} предупреждений.` : `
-And ${records.length - 3} more warnings.`)
+    ? (isRu ? `\nИ ещё ${records.length - 3} предупреждений.` : `\nAnd ${records.length - 3} more warnings.`)
     : '';
   await interaction.reply({
-    content: `**${isRu ? 'Предупреждения' : 'Warnings'}: ${target.tag}**
-${lines.join('\n\n')}${remaining}`,
-    ephemeral: true,
+    content: `**${isRu ? 'Предупреждения' : 'Warnings'}: ${target.tag}**\n${lines.join('\n\n')}${remaining}`,
+    flags: MessageFlags.Ephemeral,
     allowedMentions: { parse: [] },
   });
 }

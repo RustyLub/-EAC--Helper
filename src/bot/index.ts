@@ -1,10 +1,32 @@
-import { Client, GatewayIntentBits, Collection } from 'discord.js';
+import { Client, GatewayIntentBits, Collection, Events } from 'discord.js';
 import 'dotenv/config';
 import { BotClient, Command } from './types';
 import { deployCommands } from './deploy-commands';
 import { commands, events } from './registry';
 
 type EventHandler = (...args: any[]) => unknown;
+
+/** Превращает типичные ошибки входа в понятную инструкцию (оригинальная ошибка сохраняется в cause). */
+function explainLoginError(error: unknown): Error | null {
+  const code = (error as { code?: unknown } | null)?.code;
+  const message = error instanceof Error ? error.message : String(error);
+  if (code === 'DisallowedIntents' || /disallowed intents|privileged intent/i.test(message)) {
+    return new Error(
+      'Discord отклонил подключение: не включены привилегированные intents. ' +
+      'Открой Discord Developer Portal → твоё приложение → Bot → Privileged Gateway Intents ' +
+      'и включи «Server Members Intent» и «Message Content Intent», затем перезапусти бота.',
+      { cause: error },
+    );
+  }
+  if (code === 'TokenInvalid' || /invalid token|an invalid token was provided/i.test(message)) {
+    return new Error(
+      'Discord не принял DISCORD_TOKEN. Нажми «Reset Token» в Developer Portal → Bot, ' +
+      'скопируй новый токен целиком в .env (без кавычек и пробелов) и перезапусти бота.',
+      { cause: error },
+    );
+  }
+  return null;
+}
 
 export async function startBot() {
   const token = process.env.DISCORD_TOKEN;
@@ -20,6 +42,11 @@ export async function startBot() {
       GatewayIntentBits.MessageContent,
     ],
   }) as BotClient;
+
+  // Без слушателя события 'error' EventEmitter бросает исключение и роняет процесс при сетевом сбое.
+  client.on(Events.Error, (error) => console.error('[Bot] Ошибка клиента Discord:', error));
+  client.on(Events.Warn, (warning) => console.warn('[Bot] Предупреждение Discord:', warning));
+  client.on(Events.ShardError, (error) => console.error('[Bot] Ошибка соединения с Gateway:', error));
 
   client.commands = new Collection<string, Command>();
   const registeredNames = new Set<string>();
@@ -61,6 +88,6 @@ export async function startBot() {
     await client.login(token);
   } catch (error) {
     client.destroy();
-    throw error;
+    throw explainLoginError(error) ?? error;
   }
 }

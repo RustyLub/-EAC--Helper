@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { MessageFlags, ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { getGuildLanguage } from '../../utils/lang';
 import { getRuntimeGuild } from '../../utils/runtime';
 
@@ -10,9 +10,9 @@ export const data = new SlashCommandBuilder().setName('automod').setDescription(
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  if (!interaction.inGuild() || !interaction.guildId) { await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true }); return; }
+  if (!interaction.inGuild() || !interaction.guildId) { await interaction.reply({ content: 'Эта команда доступна только на сервере.', flags: MessageFlags.Ephemeral }); return; }
   const english = (await getGuildLanguage(interaction.guildId)) === 'en';
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) { await interaction.reply({ content: english ? 'Administrator permission is required.' : 'Требуются права администратора.', ephemeral: true }); return; }
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) { await interaction.reply({ content: english ? 'Administrator permission is required.' : 'Требуются права администратора.', flags: MessageFlags.Ephemeral }); return; }
   const state = getRuntimeGuild(interaction.guildId);
   const current = state.automod;
   const spam = interaction.options.getBoolean('anti_spam');
@@ -21,12 +21,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const words = interaction.options.getString('bad_words');
   const changed = spam !== null || invites !== null || caps !== null || words !== null;
   if (!changed) {
-    await interaction.reply({ content: [`Anti-spam: ${current.antiSpam ? 'ON' : 'OFF'}`, `Anti-invite: ${current.antiInvite ? 'ON' : 'OFF'}`, `Anti-caps: ${current.antiCaps ? 'ON' : 'OFF'}`, `Bad words: ${current.badWords.length}`, 'Настройки действуют до перезапуска бота.'].join('\n'), ephemeral: true }); return;
+    await interaction.reply({ content: [`Anti-spam: ${current.antiSpam ? 'ON' : 'OFF'}`, `Anti-invite: ${current.antiInvite ? 'ON' : 'OFF'}`, `Anti-caps: ${current.antiCaps ? 'ON' : 'OFF'}`, `Bad words: ${current.badWords.length}`, 'Настройки действуют до перезапуска бота.'].join('\n'), flags: MessageFlags.Ephemeral }); return;
   }
   state.automod = {
     ...current,
     antiSpam: spam ?? current.antiSpam, antiInvite: invites ?? current.antiInvite, antiCaps: caps ?? current.antiCaps,
     badWords: words === null ? current.badWords : words.trim().toLowerCase() === 'clear' ? [] : words.split(',').map(w => w.trim().toLowerCase()).filter(Boolean).slice(0, 100),
   };
-  await interaction.reply({ content: (english ? 'Automod settings updated in memory. They reset after restart.\n' : 'Настройки автомодерации применены до перезапуска бота.\n') + [`Anti-spam: ${state.automod.antiSpam ? 'ON' : 'OFF'}`, `Anti-invite: ${state.automod.antiInvite ? 'ON' : 'OFF'}`, `Anti-caps: ${state.automod.antiCaps ? 'ON' : 'OFF'}`, `Bad words: ${state.automod.badWords.length}`].join('\n'), ephemeral: true });
+  await interaction.reply({ content: (english ? 'Automod settings updated in memory. They reset after restart.\n' : 'Настройки автомодерации применены до перезапуска бота.\n') + [`Anti-spam: ${state.automod.antiSpam ? 'ON' : 'OFF'}`, `Anti-invite: ${state.automod.antiInvite ? 'ON' : 'OFF'}`, `Anti-caps: ${state.automod.antiCaps ? 'ON' : 'OFF'}`, `Bad words: ${state.automod.badWords.length}`].join('\n'), flags: MessageFlags.Ephemeral });
 }

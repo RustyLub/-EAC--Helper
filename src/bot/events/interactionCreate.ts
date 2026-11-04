@@ -1,4 +1,4 @@
-import { Events, Interaction } from 'discord.js';
+import { MessageFlags, Events, Interaction } from 'discord.js';
 import { BotClient } from '../types';
 import { handleDashboardButton } from '../commands/utility/dashboard';
 import { getRuntimeGuild } from '../utils/runtime';
@@ -8,7 +8,7 @@ export const once = false;
 
 async function reportInteractionError(interaction: Interaction, error: unknown): Promise<void> {
   console.error('[Bot] Interaction failed:', error);
-  const payload = { content: 'Не удалось выполнить действие. Попробуйте ещё раз позже.', ephemeral: true };
+  const payload = { content: 'Не удалось выполнить действие. Попробуйте ещё раз позже.', flags: MessageFlags.Ephemeral } as const;
 
   try {
     if (!interaction.isRepliable()) return;
@@ -34,18 +34,22 @@ export async function execute(interaction: Interaction) {
       const client = interaction.client as BotClient;
       const command = client.commands.get(interaction.commandName);
       if (!command) {
-        await interaction.reply({ content: 'Эта команда больше не зарегистрирована. Обновите команды бота.', ephemeral: true });
+        await interaction.reply({ content: 'Эта команда больше не зарегистрирована. Обновите команды бота.', flags: MessageFlags.Ephemeral });
         return;
       }
       if (interaction.inGuild() && interaction.guildId) {
         const modules = getRuntimeGuild(interaction.guildId).modules;
         const moderationCommands = ['ban', 'kick', 'mute', 'warn', 'warnings', 'clear'];
         if (moderationCommands.includes(interaction.commandName) && modules.moderation === false) {
-          await interaction.reply({ content: 'Модуль модерации отключён в веб-панели.', ephemeral: true });
+          await interaction.reply({ content: 'Модуль модерации отключён в веб-панели.', flags: MessageFlags.Ephemeral });
           return;
         }
         if (interaction.commandName === 'news' && modules.announcements === false) {
-          await interaction.reply({ content: 'Модуль оповещений отключён в веб-панели.', ephemeral: true });
+          await interaction.reply({ content: 'Модуль оповещений отключён в веб-панели.', flags: MessageFlags.Ephemeral });
+          return;
+        }
+        if (['rank', 'leaderboard'].includes(interaction.commandName) && modules.levels === false) {
+          await interaction.reply({ content: 'Модуль уровней отключён в веб-панели.', flags: MessageFlags.Ephemeral });
           return;
         }
       }
@@ -59,7 +63,7 @@ export async function execute(interaction: Interaction) {
       if (helpCommand && typeof helpCommand.handleSelect === 'function') {
         await helpCommand.handleSelect(interaction);
       } else {
-        await interaction.reply({ content: 'Меню помощи устарело. Выполните /help ещё раз.', ephemeral: true });
+        await interaction.reply({ content: 'Меню помощи устарело. Выполните /help ещё раз.', flags: MessageFlags.Ephemeral });
       }
     }
   } catch (error) {
