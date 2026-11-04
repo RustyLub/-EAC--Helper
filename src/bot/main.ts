@@ -3,9 +3,10 @@ import { startBot } from "./index";
 
 process.on('unhandledRejection', (reason) => {
   console.error('[EAC Helper] Необработанное отклонение Promise:', reason);
+  throw reason;
 });
 
-process.on('uncaughtException', (error) => {
+process.on('uncaughtExceptionMonitor', (error) => {
   console.error('[EAC Helper] Необработанное исключение процесса. Требуется проверить состояние бота:', error);
 });
 
