@@ -7,6 +7,15 @@ import { getRuntimeGuild } from "./src/bot/utils/runtime";
 import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
 
+// Keep Node.js default fatal-error termination semantics while logging the cause.
+process.on("unhandledRejection", (reason) => {
+  console.error("[EAC Helper] Необработанное отклонение Promise:", reason);
+  throw reason;
+});
+process.on("uncaughtExceptionMonitor", (error) => {
+  console.error("[EAC Helper] Необработанное исключение процесса:", error);
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
