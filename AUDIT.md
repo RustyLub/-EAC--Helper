@@ -1,6 +1,6 @@
 # EAC Helper — технический аудит
 
-Обновлено: 2026-11-03
+Обновлено: 2026-11-04
 Рабочая ветка: `feature/components-v2-dashboard`
 
 ## Архитектура
@@ -31,8 +31,8 @@
 - Данные намеренно не переживают перезапуск. На Render free возможны остановки/перезапуски процесса, после которых настройки и XP сбрасываются.
 - Для автоматического XP требуется включённый Message Content Intent в Discord Developer Portal.
 - Для приветствий и сообщений об уходе требуется Server Members Intent.
-- Настройки канала/текста для приветствий и фильтры automod задаются slash-командами `/greetings` и `/automod`; веб-панель включает/отключает сами модули.
-- GitHub Actions проверяет TypeScript Discord-бота, Express-сервер и frontend, собирает Vite и запускает тесты изоляции/сброса RuntimeGuild на Ubuntu и Windows.
+- Настройки automod, уровней, приветствий/ухода, пользовательских команд и канала оповещений доступны в веб-панели; для тех же основных настроек остаются slash-команды `/automod`, `/greetings` и `/customcommand`.
+- GitHub Actions проверяет TypeScript Discord-бота, Express-сервер и frontend, собирает Vite и запускает тесты runtime, валидации настроек, шаблонов и переключателей модулей на Ubuntu и Windows.
 - Реальный Discord OAuth2, Discord Gateway, права бота и доступность каналов нельзя полностью проверить без секретов владельца и тестового Discord-сервера.
 - Production deployment на Render требует заполнения секретов владельцем приложения и проверки callback URL.
 
@@ -42,3 +42,10 @@
 2. В Discord OAuth2 Redirects добавить `<APP_URL>/auth/callback`.
 3. Включить Server Members Intent и Message Content Intent.
 4. Пригласить бота с scopes `bot` и `applications.commands` и необходимыми permission flags.
+
+
+## Дополнительная проверка переключателей модулей (2026-11-04)
+- Slash-команды `/ban`, `/kick`, `/mute`, `/warn`, `/warnings`, `/clear` учитывают переключатель «Модерация».
+- `/rank` и `/leaderboard` учитывают переключатель «Уровни»; `/news` учитывает переключатель «Оповещения».
+- Необработанные Promise-ошибки не подавляются: они приводят к штатному завершению процесса, а `uncaughtExceptionMonitor` только записывает причину в лог.
+- Добавлен отдельный тест поведения переключателей модулей.
