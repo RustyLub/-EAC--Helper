@@ -5,6 +5,7 @@ import {
   ChannelType,
 } from 'discord.js';
 import { getGuildLanguage, translations } from '../../utils/lang';
+import { requireModuleEnabled } from '../../utils/moduleGuard';
 
 export const data = new SlashCommandBuilder()
   .setName('clear')
@@ -18,6 +19,7 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages);
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await requireModuleEnabled(interaction, 'moderation'))) return;
   if (!interaction.inGuild() || !interaction.guild) {
     await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
     return;

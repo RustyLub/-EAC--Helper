@@ -2,6 +2,7 @@ import { ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits }
 import { getGuildLanguage, translations } from '../../utils/lang';
 import { resolveModerationTarget, safeReason } from '../../utils/moderation';
 import { getRuntimeGuild } from '../../utils/runtime';
+import { requireModuleEnabled } from '../../utils/moduleGuard';
 
 export const data = new SlashCommandBuilder()
   .setName('warn')
@@ -18,6 +19,7 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await requireModuleEnabled(interaction, 'moderation'))) return;
   if (!interaction.inGuild() || !interaction.guildId) {
     await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
     return;

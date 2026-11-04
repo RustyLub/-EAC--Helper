@@ -9,6 +9,7 @@ import {
 } from 'discord.js';
 import { getGuildLanguage, translations } from '../../utils/lang';
 import { getRuntimeGuild } from '../../utils/runtime';
+import { requireModuleEnabled } from '../../utils/moduleGuard';
 
 export const data = new SlashCommandBuilder()
   .setName('news')
@@ -35,6 +36,7 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  if (!(await requireModuleEnabled(interaction, 'announcements'))) return;
   if (!interaction.inGuild() || !interaction.guild) {
     await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
     return;
