@@ -15,7 +15,7 @@
     "start": "tsx server.ts",
     "lint": "npm run build:bot",
     "typecheck:web": "tsc --noEmit -p tsconfig.json",
-    "test": "node --import tsx --test src/bot/utils/runtime.test.ts"
+    "test": "node --import tsx --test src/bot/utils/runtime.test.ts src/bot/utils/settings.test.ts src/bot/utils/template.test.ts src/bot/utils/moduleGuard.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
