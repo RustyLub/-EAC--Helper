@@ -1,6 +1,5 @@
 {
-  "name": "Discord Bot",
-  "description": "Moderation, news, and leveling Discord bot with Firebase storage.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "name": "EAC Helper",
+  "description": "Discord-бот модерации, уровней и оповещений с веб-панелью управления. Состояние хранится в памяти процесса.",
+  "requestFramePermissions": []
 }
