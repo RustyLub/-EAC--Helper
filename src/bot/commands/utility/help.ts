@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder, StringSelectMenuInteraction, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { MessageFlags, ChatInputCommandInteraction, SlashCommandBuilder, StringSelectMenuInteraction, ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, Collection } from 'discord.js';
 import { getGuildLanguage, translations } from '../../utils/lang';
 
 export const data = new SlashCommandBuilder()
@@ -51,12 +51,41 @@ function getCategories(lang: 'ru' | 'en') {
       commands: [
         { name: 'language', desc: lang === 'ru' ? 'Установить язык сервера (ru/en).' : 'Set the server language (ru/en).' },
         { name: 'automod', desc: lang === 'ru' ? 'Настроить автомодерацию.' : 'Configure automatic moderation.' },
+        { name: 'menu', desc: lang === 'ru' ? 'Открыть интерактивную панель управления.' : 'Open the interactive control panel.' },
+        { name: 'settings', desc: lang === 'ru' ? 'Открыть панель настроек сервера.' : 'Open the server settings panel.' },
         { name: 'help', desc: lang === 'ru' ? 'Показать интерактивное меню помощи.' : 'Shows the interactive help menu.' },
         { name: 'greetings', desc: lang === 'ru' ? 'Настроить приветствия и сообщения об уходе.' : 'Configure welcome and leave messages.' },
         { name: 'customcommand', desc: lang === 'ru' ? 'Создать, удалить и посмотреть пользовательские команды.' : 'Create, delete and list custom commands.' }
       ]
     }
   };
+}
+
+/**
+ * Команды приложения нужны, чтобы вставлять кликабельные упоминания </name:id>.
+ * Если команды зарегистрированы на тестовом сервере (GUILD_ID), глобальный список пуст —
+ * тогда берём серверные. При любой ошибке возвращаем пустую коллекцию: справка покажет `/name`.
+ */
+async function loadAppCommands(interaction: StringSelectMenuInteraction): Promise<Collection<string, { id: string; name: string }>> {
+  const result = new Collection<string, { id: string; name: string }>();
+  const manager = interaction.client.application?.commands;
+  if (!manager) return result;
+
+  const tryFetch = async (guildId?: string) => {
+    try {
+      return guildId ? await manager.fetch({ guildId }) : await manager.fetch();
+    } catch {
+      return null;
+    }
+  };
+
+  const globalCommands = manager.cache.size > 0 ? manager.cache : await tryFetch();
+  globalCommands?.forEach((command) => result.set(command.name, command));
+  if (result.size === 0 && interaction.guildId) {
+    const guildCommands = await tryFetch(interaction.guildId);
+    guildCommands?.forEach((command) => result.set(command.name, command));
+  }
+  return result;
 }
 
 function generateMainEmbed(client: any, lang: 'ru' | 'en') {
@@ -155,7 +184,7 @@ function generateComponents(selectedCategory: string, lang: 'ru' | 'en') {
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   if (!interaction.inGuild() || !interaction.guildId) {
-    await interaction.reply({ content: 'Эта команда доступна только на сервере.', ephemeral: true });
+    await interaction.reply({ content: 'Эта команда доступна только на сервере.', flags: MessageFlags.Ephemeral });
     return;
   }
   const lang = await getGuildLanguage(interaction.guildId);
@@ -170,7 +199,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
 export async function handleSelect(interaction: StringSelectMenuInteraction) {
   if (!interaction.inGuild() || !interaction.guildId) {
-    await interaction.reply({ content: 'Это меню доступно только на сервере.', ephemeral: true });
+    await interaction.reply({ content: 'Это меню доступно только на сервере.', flags: MessageFlags.Ephemeral });
     return;
   }
   const lang = await getGuildLanguage(interaction.guildId);
@@ -180,11 +209,7 @@ export async function handleSelect(interaction: StringSelectMenuInteraction) {
   if (selectedCategory === 'home') {
     embed = generateMainEmbed(interaction.client, lang);
   } else {
-    let appCommands = interaction.client.application?.commands.cache;
-    if (!appCommands || appCommands.size === 0) {
-      appCommands = await interaction.client.application?.commands.fetch();
-    }
-    embed = generateCategoryEmbed(selectedCategory, appCommands, lang);
+    embed = generateCategoryEmbed(selectedCategory, await loadAppCommands(interaction), lang);
   }
 
   const components = generateComponents(selectedCategory, lang);
